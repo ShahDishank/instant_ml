@@ -191,7 +191,7 @@ def stream_data(string):
 
 
 def fetch_code(fname):
-	with open(f"templetes\\{fname}.py", "r") as f:
+	with open(f"templetes/{fname}.py", "r") as f:
 		data = f.read()
 	return data
 
