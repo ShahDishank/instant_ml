@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 
 st.set_page_config(
     page_title="Instant ML",
-    page_icon="media_files\\icon.png",
+    page_icon="media_files/icon.png",
     layout="centered",
     initial_sidebar_state="expanded",
     menu_items={
@@ -28,7 +28,7 @@ with lt.container():
 	st.title("Instant ML")
 	st.write("")
 
-	img_path = "media_files\\home_img.svg"
+	img_path = "media_files/home_img.svg"
 	with open(img_path, 'r') as f:
 		img = f.read()
 	st.image(img, width=360)
