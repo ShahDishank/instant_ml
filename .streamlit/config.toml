@@ -1,0 +1,9 @@
+[server]
+enableXsrfProtection = false
+enableCORS = false
+maxUploadSize = 300
+
+[theme]
+base="dark"
+primaryColor="dodgerblue"
+font="sans serif"
