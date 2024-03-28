@@ -15,7 +15,7 @@ st.set_page_config(
     page_title="Instant ML",
     page_icon="media_files/icon.png",
     layout="centered",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     menu_items={
         'Get Help': 'mailto:shahdishank24@gmail.com',
         'Report a bug': "mailto:shahdishank24@gmail.com",
@@ -25,18 +25,24 @@ st.set_page_config(
 
 lt = st.empty()
 with lt.container():
-	st.title("Instant ML")
-	st.write("")
 
-	img_path = "media_files/home_img.svg"
-	with open(img_path, 'r') as f:
-		img = f.read()
-	st.image(img, width=360)
-
-	st.header("")
 	st.markdown("""
-	<p style='font-size:18px'>Introducing Instant ML, the revolutionary platform that lets anyone build powerful models in seconds.\
-	Upload your data, and Instant ML takes care of the rest - no coding required.</p>
+	<h1 style='text-align:center'>Instant ML</h1>
+	""", unsafe_allow_html=True)
+	st.subheader("")
+
+	col1, col2, col3 = st.columns([0.2, 0.5, 0.2])
+	with col2:
+		img_path = "media_files/home_img.svg"
+		with open(img_path, 'r') as f:
+			img = f.read()
+		st.image(img, use_column_width=True)
+
+	st.subheader("")
+	st.write("")
+	st.markdown("""
+	<p style='font-size:20px; text-align:center'>
+	Build Machine Learning models in seconds. Upload your data and <strong style='color:dodgerblue'>Get Started!<strong></p>
 	""",unsafe_allow_html=True)
 
 
@@ -258,7 +264,7 @@ def algorithm(df):
 						st.sidebar.caption("Better Parameters")
 						st.sidebar.write(model.best_params_)
 						st.sidebar.caption("Average Score")
-						st.sidebar.write(model.best_score_)
+						st.sidebar.write(model.best_score_*100)
 					else:
 						params = model.get_params()
 
@@ -275,8 +281,8 @@ def algorithm(df):
 					train_score = model.score(X_train, y_train)
 					test_score = model.score(X_test, y_test)
 					# st.subheader(f"accuracy: {accuracy}")
-					st.subheader(f"train accuracy: {train_score}")
-					st.subheader(f"test accuracy: {test_score}")
+					st.subheader(f"train accuracy: {train_score*100:.4f} %")
+					st.subheader(f"test accuracy: {test_score*100:.4f} %")
 					st.header("\n")
 					# st.sidebar.write(list(model.cv_results_.keys()))
 					cr = classification_report(y_test, y_pred)
