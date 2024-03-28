@@ -10,14 +10,14 @@ y = df["{target}"]
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state = 101)
 
-model = RandomForestClassifier(n_estimators = {n_estimators}, max_leaf_nodes = {max_leaf_nodes}, max_depth = {max_depth}, max_features = "{max_features}")
+model = RandomForestClassifier(n_estimators = {n_estimators}, max_leaf_nodes = {max_leaf_nodes}, max_depth = {max_depth}, max_features = {max_features})
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 
 train_score = model.score(X_train, y_train)
 test_score = model.score(X_test, y_test)
-print(f"train_score: {{train_score}}")
-print(f"test_score: {{test_score}}")
+print(f"train accuracy: {{train_score*100:.4f}} %")
+print(f"test accuracy: {{test_score*100:.4f}} %")
 
 cr = classification_report(y_test, y_pred)
 print(f"Classification Report: \n\n {{cr}}")

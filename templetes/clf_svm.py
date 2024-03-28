@@ -16,8 +16,8 @@ y_pred = model.predict(X_test)
 
 train_score = model.score(X_train, y_train)
 test_score = model.score(X_test, y_test)
-print(f"train_score: {{train_score}}")
-print(f"test_score: {{test_score}}")
+print(f"train accuracy: {{train_score*100:.4f}} %")
+print(f"test accuracy: {{test_score*100:.4f}} %")
 
 cr = classification_report(y_test, y_pred)
 print(f"Classification Report: \n\n {{cr}}")
