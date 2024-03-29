@@ -27,7 +27,6 @@ st.set_page_config(
 
 lt = st.empty()
 with lt.container():
-
 	st.markdown("""
 	<h1 style='text-align:center;'>Instant ML</h1>
 	""", unsafe_allow_html=True)
@@ -47,7 +46,6 @@ with lt.container():
 	<p style='font-size:20px; text-align:center'>
 	Build Machine Learning models in seconds. Upload your data and <strong style='color:dodgerblue'>Get Started!<strong></p>
 	""",unsafe_allow_html=True)
-
 
 
 def get_data(df, target):
@@ -378,16 +376,22 @@ def get_code(algo_type, f_var, params):
 					data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_features = max_f, min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
 	return data
 
-def algorithm(df):
+def algorithm(df, demo="no"):
 	if not df.empty:
 		show_data(df)
 		cols = ("select", )
 		for i, j in enumerate(df.columns):
 			cols = cols + (j,)
-		target = st.sidebar.selectbox(
-			'Select target value',
-			cols,
-			)
+		if demo == "no":
+			target = st.sidebar.selectbox(
+				'Select target value',
+				cols,
+				)
+		else:
+			if demo == "clf_demo":
+				target = "Class"
+			elif demo == "reg_demo":
+				target = "Price"
 		if target != "select":
 			X, y = get_data(df, target)
 			if not X.empty:
@@ -399,10 +403,18 @@ def algorithm(df):
 				st.write(f"y_train: {y_train.shape}")
 				st.write(f"y_test: {y_test.shape}")
 
-				algo_type = st.sidebar.selectbox(
-					'Select an algorithm type',
-					('Classification', 'Regression')
-					)
+				if demo == "no":
+					algo_type = st.sidebar.selectbox(
+						'Select an algorithm type',
+						('Classification', 'Regression')
+						)
+				else:
+					if demo == "clf_demo":
+						algo_type = "Classification"
+						st.sidebar.subheader("Classification")
+					elif demo == "reg_demo":
+						algo_type = "Regression"
+						st.sidebar.subheader("Regression")
 				if algo_type == "Classification":
 					start_time = time.time()
 					model = classification()
@@ -550,15 +562,43 @@ def algorithm(df):
 						)
 
 
-uploaded_file = st.sidebar.file_uploader("Upload the CSV file (separator must be coma)", type=['csv'])
-if uploaded_file is not None:
-	try:
-		df = pd.read_csv(uploaded_file)
-		global filename
-		filename = uploaded_file.name
-		lt.empty()
-	except:
-		st.sidebar.error("The File is empty or unable to read!")
-		df = pd.DataFrame()
-	finally:
-		algorithm(df)
+def upload_file():
+	uploaded_file = st.sidebar.file_uploader("Upload the CSV file (separator must be coma)", type=['csv'])
+	if uploaded_file is not None:
+		try:
+			df = pd.read_csv(uploaded_file)
+			global filename
+			filename = uploaded_file.name
+			lt.empty()
+		except:
+			st.sidebar.error("The File is empty or unable to read!")
+			df = pd.DataFrame()
+		finally:
+			algorithm(df)
+
+choice = st.sidebar.selectbox("Choose data upload option", ("-- select --", "Try with demo data", "Upload data file"))
+if choice == "Try with demo data":
+	global filename
+	f_choice = st.sidebar.selectbox("Choose data file", ("-- select --", "Wine-data", "Housing-data"))
+	if f_choice == "Wine-data":
+		try:
+			df = pd.read_csv("data_files/wine-data.csv")
+			filename = "wine-data.csv"
+			lt.empty()
+		except:
+			st.sidebar.error("Error while loading the file!")
+			df = pd.DataFrame()
+		finally:
+			algorithm(df, "clf_demo")
+	elif f_choice == "Housing-data":
+		try:
+			df = pd.read_csv("data_files/Housing-data.csv")
+			filename = "Housing-data.csv"
+			lt.empty()
+		except:
+			st.sidebar.error("Error while loading the file!")
+			df = pd.DataFrame()
+		finally:
+			algorithm(df, "reg_demo")
+elif choice == "Upload data file":
+	upload_file()
