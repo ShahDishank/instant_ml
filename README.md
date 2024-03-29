@@ -45,7 +45,7 @@ If you have any feedback, please reach out to me at shahdishank24@gmail.com
 **Model Creation:** scikit-learn
 
 
-## Authors
+## Author
 
 - [@shahdishank](https://github.com/ShahDishank)
 
