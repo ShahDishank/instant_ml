@@ -44,7 +44,7 @@ with lt.container():
 	st.write("")
 	st.markdown("""
 	<p style='font-size:20px; text-align:center'>
-	Build Machine Learning models in seconds. Upload your data and <strong style='color:dodgerblue'>Get Started!<strong></p>
+	Build Machine Learning models in seconds. Open the sidebar and <strong style='color:dodgerblue'>Get Started!<strong></p>
 	""",unsafe_allow_html=True)
 
 
