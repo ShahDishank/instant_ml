@@ -1,5 +1,9 @@
 streamlit
 numpy
 pandas
+seaborn
 scikit-learn
 matplotlib
+pickle
+python-io
+plotly

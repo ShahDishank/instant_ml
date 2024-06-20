@@ -3,6 +3,10 @@ import numpy as np
 import pandas as pd
 import time
 import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
@@ -10,7 +14,9 @@ from sklearn.svm import SVC, SVR
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score, roc_curve, auc, precision_recall_curve
+from io import BytesIO
+import pickle
 
 st.set_page_config(
     page_title="Instant ML",
@@ -309,8 +315,12 @@ def regression():
 
 def show_data(df):
 	st.subheader(f"Shape of the Dataset: {df.shape}")
-	st.caption("Data Summary")
+	st.write("")
+	st.write("")
+	st.caption("Data Overview")
 	st.dataframe(df.head(), hide_index=True)
+	st.write("")
+	st.write("")
 	st.caption("Some Statistics")
 	st.table(df.describe())
 
@@ -376,6 +386,146 @@ def get_code(algo_type, f_var, params):
 					data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_features = max_f, min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
 	return data
 
+
+def intr_plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    fig = px.imshow(cm, 
+                    labels=dict(x="Predicted", y="True", color="Count"),
+                    x=[str(i) for i in range(cm.shape[1])], 
+                    y=[str(i) for i in range(cm.shape[0])])
+    fig.update_layout(title='Confusion Matrix')
+    return fig
+
+def intr_plot_class_distribution(y_pred):
+    unique_classes, counts = np.unique(y_pred, return_counts=True)
+    fig = px.bar(x=unique_classes, y=counts, labels={'x': 'Class', 'y': 'Number of Instances'})
+    fig.update_layout(title='Class Distribution')
+    return fig
+
+def intr_plot_roc_curve(y_true, y_proba):
+    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    roc_auc = auc(fpr, tpr)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC curve (area = {roc_auc:.2f})'))
+    fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Random', line=dict(dash='dash')))
+    fig.update_layout(title='Receiver Operating Characteristic (ROC) Curve', xaxis_title='False Positive Rate', yaxis_title='True Positive Rate')
+    return fig
+
+def intr_plot_precision_recall_curve(y_true, y_proba):
+    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=recall, y=precision, mode='lines', name='Precision-Recall curve'))
+    fig.update_layout(title='Precision-Recall Curve', xaxis_title='Recall', yaxis_title='Precision')
+    return fig
+
+def plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    fig = plt.figure(figsize=(10, 7))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
+    return fig
+
+def plot_class_distribution(y_pred):
+    unique_classes, counts = np.unique(y_pred, return_counts=True)
+    fig = plt.figure(figsize=(10, 7))
+    plt.bar(unique_classes, counts, color='skyblue')
+    plt.xlabel('Class')
+    plt.ylabel('Number of Instances')
+    plt.title('Class Distribution')
+    plt.xticks(unique_classes)
+    return fig
+
+def plot_roc_curve(y_true, y_proba):
+    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    roc_auc = auc(fpr, tpr)
+    fig = plt.figure(figsize=(10, 7))
+    plt.plot(fpr, tpr, color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.legend(loc="lower right")
+    return fig
+
+def plot_precision_recall_curve(y_true, y_proba):
+    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+    fig = plt.figure(figsize=(10, 7))
+    plt.plot(recall, precision, color='blue', lw=2)
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curve')
+    return fig
+
+def intr_plot_predicted_vs_actual(y_true, y_pred):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=y_true, y=y_pred, mode='markers', name='Predicted vs Actual', opacity=0.5))
+    fig.add_trace(go.Scatter(x=[min(y_true), max(y_true)], y=[min(y_true), max(y_true)], mode='lines', name='Ideal', line=dict(color='red', dash='dash')))
+    fig.update_layout(title='Predicted vs. Actual Values', xaxis_title='Actual Values', yaxis_title='Predicted Values')
+    return fig
+
+def intr_plot_residuals(y_true, y_pred):
+    residuals = y_true - y_pred
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=y_pred, y=residuals, mode='markers', name='Residuals', opacity=0.5))
+    fig.add_trace(go.Scatter(x=[min(y_pred), max(y_pred)], y=[0, 0], mode='lines', name='Zero Residuals', line=dict(color='red', dash='dash')))
+    fig.update_layout(title='Residuals Plot', xaxis_title='Predicted Values', yaxis_title='Residuals')
+    return fig
+
+def intr_plot_error_distribution(y_true, y_pred):
+    errors = y_true - y_pred
+    fig = px.histogram(errors, nbins=50, title='Distribution of Prediction Errors')
+    fig.update_layout(xaxis_title='Prediction Error', yaxis_title='Count')
+    return fig
+
+def plot_predicted_vs_actual(y_true, y_pred):
+    fig = plt.figure(figsize=(10, 7))
+    plt.scatter(y_true, y_pred, alpha=0.3)
+    plt.plot([min(y_true), max(y_true)], [min(y_true), max(y_true)], color='red', linestyle='--')
+    plt.xlabel('Actual Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Predicted vs. Actual Values')
+    return fig
+
+def plot_residuals(y_true, y_pred):
+    residuals = y_true - y_pred
+    fig = plt.figure(figsize=(10, 7))
+    plt.scatter(y_pred, residuals, alpha=0.3)
+    plt.axhline(0, color='red', linestyle='--')
+    plt.xlabel('Predicted Values')
+    plt.ylabel('Residuals')
+    plt.title('Residuals Plot')
+    return fig
+
+def plot_error_distribution(y_true, y_pred):
+    errors = y_true - y_pred
+    fig = plt.figure(figsize=(10, 7))
+    sns.histplot(errors, kde=True, color='blue')
+    plt.xlabel('Prediction Error')
+    plt.title('Distribution of Prediction Errors')
+    return fig
+
+def model_download(se, model):
+	with st.sidebar:
+		with st.spinner("Saving model..."):
+			buffer = BytesIO()
+			pickle.dump(model, buffer)
+			buffer.seek(0)
+			time.sleep(1)
+	st.toast("Model is Saved!")
+	se.download_button(
+	    label="Download Model",
+	    data=buffer,
+	    file_name="model.pkl",
+	    mime="application/octet-stream",
+	    use_container_width=True,
+	    type="primary"
+	)
+
+
 def algorithm(df, demo="no"):
 	if not df.empty:
 		show_data(df)
@@ -393,15 +543,20 @@ def algorithm(df, demo="no"):
 			elif demo == "reg_demo":
 				target = "Price"
 		if target != "select":
+			st.sidebar.write("")
+			create_btn = st.sidebar.toggle("Create Model")
+			st.sidebar.write("")
+		if target != "select" and create_btn:
 			X, y = get_data(df, target)
 			if not X.empty:
 				tst_size = st.sidebar.slider("Select the test size of the dataset to split", 0.1, 0.9, 0.2)
 				X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = tst_size, random_state = 101)
-				st.subheader("Shape of...")
-				st.write(f"X_train: {X_train.shape}")
-				st.write(f"X_test: {X_test.shape}")
-				st.write(f"y_train: {y_train.shape}")
-				st.write(f"y_test: {y_test.shape}")
+				st.write("")
+				st.subheader("Shape of")
+				st.write(f"- X_train: **{X_train.shape}**")
+				st.write(f"- X_test: **{X_test.shape}**")
+				st.write(f"- y_train: **{y_train.shape}**")
+				st.write(f"- y_test: **{y_test.shape}**")
 
 				if demo == "no":
 					algo_type = st.sidebar.selectbox(
@@ -437,7 +592,13 @@ def algorithm(df, demo="no"):
 					---
 					"""
 					)
+					st.sidebar.write("")
+					se = st.sidebar.empty()
+					model_download_btn = se.button("Save Model", use_container_width=True, type="primary")
+					if model_download_btn:
+						model_download(se, model)
 
+					st.sidebar.write("")
 					st.sidebar.caption("Execution Time (in seconds)")
 					st.sidebar.write(time_taken)
 
@@ -445,8 +606,22 @@ def algorithm(df, demo="no"):
 					train_score = model.score(X_train, y_train)
 					test_score = model.score(X_test, y_test)
 					# st.subheader(f"accuracy: {accuracy}")
-					st.subheader(f"train accuracy: {train_score*100:.4f} %")
-					st.subheader(f"test accuracy: {test_score*100:.4f} %")
+
+					st.subheader("Model Performance")
+					st.write("")
+
+					train_color = "green"
+					test_color = "green"
+					if train_score < 0.5:
+						train_color = "red"
+					if test_score < 0.5:
+						test_color = "red"
+					st.progress(train_score, f"# Train Accuracy : :{train_color}[{train_score*100:.4f} %]")
+					st.write("")
+					st.progress(test_score, f"# Test Accuracy : :{test_color}[{test_score*100:.4f} %]")
+
+					# st.subheader(f"train accuracy: {train_score*100:.4f} %")
+					# st.subheader(f"test accuracy: {test_score*100:.4f} %")
 					st.header("\n")
 					# st.sidebar.write(list(model.cv_results_.keys()))
 					cr = classification_report(y_test, y_pred)
@@ -465,6 +640,62 @@ def algorithm(df, demo="no"):
 						with col2:
 							# st.caption("Predicted target values")
 							st.dataframe(y_pred[:count], hide_index = True, use_container_width = True, column_config = {"value" : "Predicted Target Values"})
+
+					st.subheader("")
+
+					tab1, tab2 = st.tabs(["Interactive", "Normal"])
+					n = y_test.nunique()
+					with tab1:
+						st.write("")
+						st.subheader("Confusion Matrix")
+						st.write("")
+						ifig = intr_plot_confusion_matrix(y_test, y_pred)
+						st.plotly_chart(ifig)
+						st.subheader("")
+
+						st.subheader("Class Distribution")
+						st.write("")
+						ifig2 = intr_plot_class_distribution(y_pred)
+						st.plotly_chart(ifig2)
+
+						if n == 2:
+							st.subheader("")
+							st.subheader("ROC Curve")
+							ifig3 = intr_plot_roc_curve(y_test, y_pred)
+							st.plotly_chart(ifig3)
+							st.subheader("")
+
+							st.subheader("Precision-Recall Curve")
+							ifig4 = intr_plot_precision_recall_curve(y_test, y_pred)
+							st.plotly_chart(ifig4)
+
+
+					with tab2:
+						st.write("")
+						st.subheader("Confusion Matrix")
+						st.write("")
+						fig = plot_confusion_matrix(y_test, y_pred)
+						st.pyplot(fig)
+						st.subheader("")
+
+						st.subheader("Class Distribution")
+						st.write("")
+						fig2 = plot_class_distribution(y_pred)
+						st.pyplot(fig2)
+
+						if n == 2:
+							st.subheader("")
+							st.subheader("ROC Curve")
+							st.write("")
+							fig3 = plot_roc_curve(y_test, y_pred)
+							st.pyplot(fig3)
+							st.subheader("")
+
+							st.subheader("Precision-Recall Curve")
+							st.write("")
+							fig4 = plot_precision_recall_curve(y_test, y_pred)
+							st.pyplot(fig4)
+
 
 					st.header("")
 					gen = st.toggle("**Generate Code**")
@@ -502,7 +733,13 @@ def algorithm(df, demo="no"):
 					---
 					"""
 					)
+					st.sidebar.write("")
+					se = st.sidebar.empty()
+					model_download_btn = se.button("Save Model", use_container_width=True, type="primary")
+					if model_download_btn:
+						model_download(se, model)
 
+					st.sidebar.write("")
 					st.sidebar.caption("Execution Time (in seconds)")
 					st.sidebar.write(time_taken)
 					
@@ -513,12 +750,34 @@ def algorithm(df, demo="no"):
 					rmse = root_mean_squared_error(y_test, y_pred)
 					r2 = r2_score(y_test, y_pred)
 
-					st.subheader(f"train score: {train_score:.4f}")
-					st.subheader(f"test score: {test_score:.4f}")
-					st.subheader(f"Mean Absolute Error: {mae:.4f}")
-					st.subheader(f"Mean Squared Error: {mse:.4f}")
-					st.subheader(f"Root Mean Squared Error: {rmse:.4f}")
-					st.subheader(f"R2 Score: {r2:.4f}")
+					st.subheader("Model Performance")
+					st.write("")
+
+					train_color = "green"
+					test_color = "green"
+					if train_score < 0.5:
+						train_color = "red"
+					if test_score < 0.5:
+						test_color = "red"
+					st.progress(train_score, f"# Train Score : :{train_color}[{train_score:.4f}]")
+					st.write("")
+					st.progress(test_score, f"# Test Score : :{test_color}[{test_score:.4f}]")
+					st.subheader("")
+
+					col1, col2 = st.columns(2, gap="large")
+					col1.metric("# **:blue[Mean Absolute Error]**", f"{mae:.2f}")
+					col2.metric("# **:blue[Mean Squared Error]**", f"{mse:.2f}")
+					col3, col4 = st.columns(2, gap="large")
+					col3.metric("# **:blue[Root Mean Squared Error]**", f"{rmse:.2f}")
+					col4.metric("# **:blue[R2 Score]**", f"{r2:.2f}")
+					st.write("")
+
+					# st.subheader(f"train score: {train_score:.4f}")
+					# st.subheader(f"test score: {test_score:.4f}")
+					# st.subheader(f"Mean Absolute Error: {mae:.4f}")
+					# st.subheader(f"Mean Squared Error: {mse:.4f}")
+					# st.subheader(f"Root Mean Squared Error: {rmse:.4f}")
+					# st.subheader(f"R2 Score: {r2:.4f}")
 
 					st.subheader("")
 					show = st.toggle("**Show Comparisons**", value=True)
@@ -533,19 +792,76 @@ def algorithm(df, demo="no"):
 					st.subheader("")
 
 					col = len(X_test.columns)
-					col_select = st.slider("Select column for graph", 1, col, 1)
-					fig = plt.figure()
-					plt.scatter(X_test.iloc[:,col_select-1], y_test, color='b')
-					plt.plot(X_test.iloc[:,col_select-1], y_pred, color ='g')
-					plt.xlabel(f"X_test column {col_select}")
-					plt.ylabel(f"y_test & y_pred")
-					st.pyplot(fig)
-					st.subheader("")
-					fig2 = plt.figure()
-					plt.scatter(y_test, y_pred, color = 'b')
-					plt.xlabel("y_test")
-					plt.ylabel("y_pred")
-					st.pyplot(fig2)
+
+					t1, t2 = st.tabs(["Interactive", "Normal"])
+
+					with t1:
+						st.write("")
+						col_select = st.slider("Select column for graph", 1, col, 1, key=1)
+
+						ifig = go.Figure()
+						ifig.add_trace(go.Scatter(x=X_test.iloc[:, col_select-1], y=y_test, mode='markers', name='Actual', marker=dict(color='blue')))
+						ifig.add_trace(go.Scatter(x=X_test.iloc[:, col_select-1], y=y_pred, mode='lines', name='Predicted', line=dict(color='green')))
+						ifig.update_layout(
+						    title=f"Actual vs. Predicted for column {col_select}",
+						    xaxis_title=f"X_test column {col_select}",
+						    yaxis_title="Values",
+						    legend=dict(x=0, y=1)
+						)
+						st.plotly_chart(ifig)
+
+						# st.write("")
+						st.divider()
+						st.write("")
+
+						st.subheader("Predicted vs Actual")
+						ifig2 = intr_plot_predicted_vs_actual(y_test, y_pred)
+						st.plotly_chart(ifig2)
+						st.subheader("")
+
+						st.subheader("Residuals")
+						ifig3 = intr_plot_residuals(y_test, y_pred)
+						st.plotly_chart(ifig3)
+						st.subheader("")
+
+						st.subheader("Error Distribution")
+						ifig4 = intr_plot_error_distribution(y_test, y_pred)
+						st.plotly_chart(ifig4)
+
+					with t2:
+						st.write("")
+						col_select = st.slider("Select column for graph", 1, col, 1, key=2)
+
+						fig = plt.figure(figsize=(10, 7))
+						sns.scatterplot(x=X_test.iloc[:, col_select-1], y=y_test, color='b', label='Actual')
+						sns.lineplot(x=X_test.iloc[:, col_select-1], y=y_pred, color='g', label='Predicted')
+						plt.xlabel(f"X_test column {col_select}")
+						plt.ylabel("Values")
+						plt.title("Actual vs. Predicted for a perticular column")
+						plt.legend()
+						st.pyplot(fig)
+
+						st.write("")
+						st.divider()
+						st.write("")
+
+
+						st.subheader("Predicted vs Actual")
+						st.write("")
+						fig2 = plot_predicted_vs_actual(y_test, y_pred)
+						st.pyplot(fig2)
+						st.subheader("")
+
+						st.subheader("Residuals")
+						st.write("")
+						fig3 = plot_residuals(y_test, y_pred)
+						st.pyplot(fig3)
+						st.subheader("")
+
+						st.subheader("Error Distribution")
+						st.write("")
+						fig4 = plot_error_distribution(y_test, y_pred)
+						st.pyplot(fig4)
 
 					st.header("")
 					gen = st.toggle("**Generate Code**")
