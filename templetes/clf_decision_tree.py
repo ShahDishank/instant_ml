@@ -44,7 +44,7 @@ def intr_plot_class_distribution(y_pred):
     fig.show()
 
 def intr_plot_roc_curve(y_true, y_proba):
-    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    fpr, tpr, _ = roc_curve(y_true, y_proba[:, 1])
     roc_auc = auc(fpr, tpr)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC curve (area = {{roc_auc:.2f}})'))
@@ -53,7 +53,7 @@ def intr_plot_roc_curve(y_true, y_proba):
     fig.show()
 
 def intr_plot_precision_recall_curve(y_true, y_proba):
-    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+    precision, recall, _ = precision_recall_curve(y_true, y_proba[:, 1])
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=recall, y=precision, mode='lines', name='Precision-Recall curve'))
     fig.update_layout(title='Precision-Recall Curve', xaxis_title='Recall', yaxis_title='Precision')
@@ -79,7 +79,7 @@ def plot_class_distribution(y_pred):
     plt.show()
 
 def plot_roc_curve(y_true, y_proba):
-    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    fpr, tpr, _ = roc_curve(y_true, y_proba[:, 1])
     roc_auc = auc(fpr, tpr)
     fig = plt.figure(figsize=(10, 7))
     plt.plot(fpr, tpr, color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
@@ -93,7 +93,7 @@ def plot_roc_curve(y_true, y_proba):
     plt.show()
 
 def plot_precision_recall_curve(y_true, y_proba):
-    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+    precision, recall, _ = precision_recall_curve(y_true, y_proba[:, 1])
     fig = plt.figure(figsize=(10, 7))
     plt.plot(recall, precision, color='blue', lw=2)
     plt.xlabel('Recall')
@@ -103,16 +103,17 @@ def plot_precision_recall_curve(y_true, y_proba):
 
 interactive = True
 n = y_test.nunique()
+y_proba = model.predict_proba(X_test)
 if interactive:
 	intr_plot_confusion_matrix(y_test, y_pred)
 	intr_plot_class_distribution(y_pred)
 	if n == 2:
-		intr_plot_roc_curve(y_test, y_pred)
-		intr_plot_precision_recall_curve(y_test, y_pred)
+		intr_plot_roc_curve(y_test, y_proba)
+		intr_plot_precision_recall_curve(y_test, y_proba)
 
 else:
 	plot_confusion_matrix(y_test, y_pred)
 	plot_class_distribution(y_pred)
 	if n == 2:
-		plot_roc_curve(y_test, y_pred)
-		plot_precision_recall_curve(y_test, y_pred)
+		plot_roc_curve(y_test, y_proba)
+		plot_precision_recall_curve(y_test, y_proba)

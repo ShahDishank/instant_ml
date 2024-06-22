@@ -17,6 +17,9 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score, roc_curve, auc, precision_recall_curve
 from io import BytesIO
 import pickle
+from fpdf import FPDF
+import tempfile
+import datetime
 
 st.set_page_config(
     page_title="Instant ML",
@@ -403,7 +406,7 @@ def intr_plot_class_distribution(y_pred):
     return fig
 
 def intr_plot_roc_curve(y_true, y_proba):
-    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    fpr, tpr, _ = roc_curve(y_true, y_proba[:, 1])
     roc_auc = auc(fpr, tpr)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC curve (area = {roc_auc:.2f})'))
@@ -412,7 +415,7 @@ def intr_plot_roc_curve(y_true, y_proba):
     return fig
 
 def intr_plot_precision_recall_curve(y_true, y_proba):
-    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+    precision, recall, _ = precision_recall_curve(y_true, y_proba[:, 1])
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=recall, y=precision, mode='lines', name='Precision-Recall curve'))
     fig.update_layout(title='Precision-Recall Curve', xaxis_title='Recall', yaxis_title='Precision')
@@ -438,7 +441,7 @@ def plot_class_distribution(y_pred):
     return fig
 
 def plot_roc_curve(y_true, y_proba):
-    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    fpr, tpr, _ = roc_curve(y_true, y_proba[:, 1])
     roc_auc = auc(fpr, tpr)
     fig = plt.figure(figsize=(10, 7))
     plt.plot(fpr, tpr, color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
@@ -452,7 +455,7 @@ def plot_roc_curve(y_true, y_proba):
     return fig
 
 def plot_precision_recall_curve(y_true, y_proba):
-    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+    precision, recall, _ = precision_recall_curve(y_true, y_proba[:, 1])
     fig = plt.figure(figsize=(10, 7))
     plt.plot(recall, precision, color='blue', lw=2)
     plt.xlabel('Recall')
@@ -515,7 +518,7 @@ def model_download(se, model):
 			pickle.dump(model, buffer)
 			buffer.seek(0)
 			time.sleep(1)
-	st.toast("Model is Saved!")
+	st.toast("Model is saved and ready to download")
 	se.download_button(
 	    label="Download Model",
 	    data=buffer,
@@ -524,6 +527,229 @@ def model_download(se, model):
 	    use_container_width=True,
 	    type="primary"
 	)
+
+
+# Plotting functions
+def pdf_plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    fig, ax = plt.subplots(figsize=(10, 7))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+    ax.set_xlabel('Predicted')
+    ax.set_ylabel('True')
+    ax.set_title('Confusion Matrix')
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+def pdf_plot_class_distribution(y_pred):
+    unique_classes, counts = np.unique(y_pred, return_counts=True)
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.bar(unique_classes, counts, color='skyblue')
+    ax.set_xlabel('Class')
+    ax.set_ylabel('Number of Instances')
+    ax.set_title('Class Distribution')
+    ax.set_xticks(unique_classes)
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+def pdf_plot_roc_curve(y_true, y_proba):
+    fpr, tpr, _ = roc_curve(y_true, y_proba[:, 1], pos_label=1)
+    roc_auc = auc(fpr, tpr)
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.plot(fpr, tpr, color='blue', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+    ax.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.set_title('Receiver Operating Characteristic (ROC) Curve')
+    ax.legend(loc="lower right")
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+def pdf_plot_precision_recall_curve(y_true, y_proba):
+    precision, recall, _ = precision_recall_curve(y_true, y_proba[:, 1])
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.plot(recall, precision, color='blue', lw=2)
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+    ax.set_title('Precision-Recall Curve')
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+def pdf_plot_predicted_vs_actual(y_true, y_pred):
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.scatter(y_true, y_pred, alpha=0.3)
+    ax.plot([min(y_true), max(y_true)], [min(y_true), max(y_true)], color='red', linestyle='--')
+    ax.set_xlabel('Actual Values')
+    ax.set_ylabel('Predicted Values')
+    ax.set_title('Predicted vs. Actual Values')
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+def pdf_plot_residuals(y_true, y_pred):
+    residuals = y_true - y_pred
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.scatter(y_pred, residuals, alpha=0.3)
+    ax.axhline(0, color='red', linestyle='--')
+    ax.set_xlabel('Predicted Values')
+    ax.set_ylabel('Residuals')
+    ax.set_title('Residuals Plot')
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+def pdf_plot_error_distribution(y_true, y_pred):
+    errors = y_true - y_pred
+    fig, ax = plt.subplots(figsize=(10, 7))
+    sns.histplot(errors, kde=True, color='blue', ax=ax)
+    ax.set_xlabel('Prediction Error')
+    ax.set_title('Distribution of Prediction Errors')
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+
+# Function to add custom font
+def add_custom_fonts(pdf):
+    pdf.add_font('AvenirNext', '', 'AvenirNext.ttf', uni=True)
+    pdf.add_font('AvenirNext', 'B', 'AvenirNextDemi.ttf', uni=True)
+
+# PDF generation
+class PDFReport(FPDF):
+    def header(self):
+        self.set_font('AvenirNext', 'B', 12)
+        self.cell(0, 10, 'Machine Learning Model Report', 1, 1, 'C')
+        self.ln(5)
+
+    def footer(self):
+    	self.set_y(-15)  # Position 15 mm from the bottom
+    	self.set_font('AvenirNext', '', 10)
+    	self.set_text_color(0,0,255)  # Blue color
+    	self.cell(0, 10, 'Generated by Instant ML', 0, 0, 'C', link='https://instant-ml.streamlit.app/')
+
+    def chapter_title(self, title):
+    	self.set_font('AvenirNext', 'B', 12)
+    	self.cell(0, 10, title, 0, 1, 'L')
+    	self.ln(1)
+
+    def chapter_body(self, body, ln=5):
+    	self.set_font('AvenirNext', '', 12)
+    	self.multi_cell(0, 9, body)
+    	self.ln(ln)
+
+    def courier_text(self, body):
+    	self.set_font('Courier', '', 12)
+    	self.multi_cell(0, 9, body)
+    	self.ln(5)
+
+    def add_image(self, img_buf, width=6, height=4):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+            img_buf.seek(0)
+            tmpfile.write(img_buf.read())
+            tmpfile.flush()
+            # Calculate x position to center the image
+            page_width = self.w - 2 * self.l_margin
+            img_width_mm = width * 25.4  # convert width from inches to mm
+            x = (page_width - img_width_mm) / 2 + self.l_margin
+            self.image(tmpfile.name, x=x, y=None, w=img_width_mm, h=height*25.4)  # convert inches to mm
+        self.ln()
+
+def create_pdf_report(algo_type, model, report_params):
+	with st.sidebar:
+		with st.spinner("Generating Report..."):
+		    pdf = PDFReport()
+		    add_custom_fonts(pdf)
+		    pdf.add_page()
+
+		    # Model and data summaries
+		    model_name = type(model).__name__
+		    model_params = model.get_params()
+		    num_features = report_params["X_test"].shape[1]
+		    num_samples = report_params["X_test"].shape[0]
+		    num_train_samples = report_params["X_train"].shape[0]
+		    num_target = 1
+
+		    # Introduction
+		    pdf.chapter_body(f"Date of the report generation: {datetime.datetime.now().strftime('%d-%m-%Y %H:%M:%S')}", 2)
+		    
+		    # Data Summary
+		    pdf.chapter_title("Data Summary")
+		    pdf.chapter_body(f"Number of features: {num_features}\nNumber of target labels: {num_target}\nNumber of samples: {num_samples+num_train_samples}")
+
+		    # Model Summary
+		    pdf.chapter_title("Model Summary")
+		    n = report_params["y_test"].nunique()
+		    if algo_type == "Classification":
+		    	if n == 2:
+		    		task = "Binary Classification"
+		    	else:
+		    		task = "Multiclass Classification"
+		    else:
+		    	task = algo_type
+		    pdf.chapter_body(f"Task: {task}\nModel: {model_name}\nHyperparameters: {model_params}\nTrain/Test Split: {num_train_samples}/{num_samples}")
+
+		    # Model Performance
+		    pdf.chapter_title("Model Performance")
+		    if algo_type == "Classification":
+		    	performance = classification_report(report_params["y_test"], report_params["y_pred"], output_dict=True)
+		    	performance_text = pd.DataFrame(performance).transpose().to_string()
+		    	pdf.chapter_body(f"Train Accuracy: {report_params['train_score']*100:.4f} %\nTest Accuracy: {report_params['test_score']*100:.4f} %\nClassification Report:", 1)
+		    	pdf.courier_text(performance_text)
+		    else:
+		    	pdf.chapter_body(f"Train Score: {report_params['train_score']*100:.4f} %\nTest Score: {report_params['test_score']*100:.4f} %\nMean Absolute Error: {report_params['mae']:.2f}\nMean Squared Error: {report_params['mse']:.2f}\nRoot Mean Squared Error: {report_params['rmse']:.2f}\nR2 Score: {report_params['r2']:.2f}")
+
+		    pdf.add_page()
+
+		    plot_functions = list()
+		    if algo_type == "Classification":
+		    	plot_functions = [
+		    		("Confusion Matrix", pdf_plot_confusion_matrix, (report_params["y_test"], report_params["y_pred"])),
+		    		("Class Distribution", pdf_plot_class_distribution, (report_params["y_pred"],))
+		    	]
+		    	# n = y_test.nunique()
+		    	if n == 2:
+		    		plot_functions.append(("ROC Curve", pdf_plot_roc_curve, (report_params["y_test"], report_params["y_proba"])))
+		    		plot_functions.append(("Precision-Recall Curve", pdf_plot_precision_recall_curve, (report_params["y_test"], report_params["y_proba"])))
+		    else:
+		    	plot_functions = [
+			        ("Predicted vs. Actual", pdf_plot_predicted_vs_actual, (report_params["y_test"], report_params["y_pred"])),
+			        ("Residuals", pdf_plot_residuals, (report_params["y_test"], report_params["y_pred"])),
+			        ("Error Distribution", pdf_plot_error_distribution, (report_params["y_test"], report_params["y_pred"]))
+			    ]
+
+		    # Plots
+		    
+		    for title, plot_func, args in plot_functions:
+		        pdf.chapter_title(title)
+		        img_buf = plot_func(*args)
+		        pdf.add_image(img_buf)
+
+		    # pdf.output(report_path)
+		    pdf_buffer = BytesIO()
+		    pdf_output = pdf.output(dest='S').encode('latin1')
+		    pdf_buffer.write(pdf_output)
+		    pdf_buffer.seek(0)
+	st.toast("Report generated and ready to download")
+	return pdf_buffer
 
 
 def algorithm(df, demo="no"):
@@ -598,14 +824,30 @@ def algorithm(df, demo="no"):
 					if model_download_btn:
 						model_download(se, model)
 
-					st.sidebar.write("")
-					st.sidebar.caption("Execution Time (in seconds)")
-					st.sidebar.write(time_taken)
+					y_proba = model.predict_proba(X_test)
 
 					# accuracy = accuracy_score(y_test, y_pred)
 					train_score = model.score(X_train, y_train)
 					test_score = model.score(X_test, y_test)
 					# st.subheader(f"accuracy: {accuracy}")
+
+					report_params = {"X_train": X_train,
+					"X_test": X_test,
+					"y_test": y_test,
+					"y_pred": y_pred,
+					"y_proba": y_proba,
+					"train_score": train_score,
+					"test_score": test_score
+					}
+
+					ety = st.sidebar.empty()
+					if ety.button("Generate Report", use_container_width=True):
+						pdf_buffer = create_pdf_report(algo_type, model, report_params)
+						ety.download_button('Download Report', pdf_buffer, file_name='report.pdf', mime='application/pdf', use_container_width=True)
+
+					st.sidebar.write("")
+					st.sidebar.caption("Model Creation Time (in seconds)")
+					st.sidebar.write(time_taken)
 
 					st.subheader("Model Performance")
 					st.write("")
@@ -645,6 +887,7 @@ def algorithm(df, demo="no"):
 
 					tab1, tab2 = st.tabs(["Interactive", "Normal"])
 					n = y_test.nunique()
+					y_proba = model.predict_proba(X_test)
 					with tab1:
 						st.write("")
 						st.subheader("Confusion Matrix")
@@ -661,12 +904,12 @@ def algorithm(df, demo="no"):
 						if n == 2:
 							st.subheader("")
 							st.subheader("ROC Curve")
-							ifig3 = intr_plot_roc_curve(y_test, y_pred)
+							ifig3 = intr_plot_roc_curve(y_test, y_proba)
 							st.plotly_chart(ifig3)
 							st.subheader("")
 
 							st.subheader("Precision-Recall Curve")
-							ifig4 = intr_plot_precision_recall_curve(y_test, y_pred)
+							ifig4 = intr_plot_precision_recall_curve(y_test, y_proba)
 							st.plotly_chart(ifig4)
 
 
@@ -687,13 +930,13 @@ def algorithm(df, demo="no"):
 							st.subheader("")
 							st.subheader("ROC Curve")
 							st.write("")
-							fig3 = plot_roc_curve(y_test, y_pred)
+							fig3 = plot_roc_curve(y_test, y_proba)
 							st.pyplot(fig3)
 							st.subheader("")
 
 							st.subheader("Precision-Recall Curve")
 							st.write("")
-							fig4 = plot_precision_recall_curve(y_test, y_pred)
+							fig4 = plot_precision_recall_curve(y_test, y_proba)
 							st.pyplot(fig4)
 
 
@@ -739,10 +982,7 @@ def algorithm(df, demo="no"):
 					if model_download_btn:
 						model_download(se, model)
 
-					st.sidebar.write("")
-					st.sidebar.caption("Execution Time (in seconds)")
-					st.sidebar.write(time_taken)
-					
+
 					train_score = model.score(X_train, y_train)
 					test_score = model.score(X_test, y_test)
 					mae = mean_absolute_error(y_test, y_pred)
@@ -750,6 +990,27 @@ def algorithm(df, demo="no"):
 					rmse = root_mean_squared_error(y_test, y_pred)
 					r2 = r2_score(y_test, y_pred)
 
+					report_params = {"X_train": X_train,
+					"X_test": X_test,
+					"y_test": y_test,
+					"y_pred": y_pred,
+					"train_score": train_score,
+					"test_score": test_score,
+					"mae": mae,
+					"mse": mse,
+					"rmse": rmse,
+					"r2": r2
+					}
+
+					ety = st.sidebar.empty()
+					if ety.button("Generate Report", use_container_width=True):
+						pdf_buffer = create_pdf_report(algo_type, model, report_params)
+						ety.download_button('Download Report', pdf_buffer, file_name='report.pdf', mime='application/pdf', use_container_width=True)
+
+					st.sidebar.write("")
+					st.sidebar.caption("Model Creation Time (in seconds)")
+					st.sidebar.write(time_taken)
+					
 					st.subheader("Model Performance")
 					st.write("")
 
