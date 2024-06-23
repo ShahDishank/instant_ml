@@ -122,7 +122,7 @@ def params_clf(model_name):
 		params["max_leaf_nodes"] = st.sidebar.slider("max_leaf_nodes", 3, 9, 3)
 	return params
 
-
+@st.cache_resource
 def model_clf(model_name, params):
 	model = None
 	if model_name == "Logistic Regression":
@@ -223,7 +223,7 @@ def params_reg(model_name):
 			)
 	return params
 
-
+@st.cache_resource
 def model_reg(model_name, params):
 	model = None
 	if model_name == "Linear Regression":
@@ -726,7 +726,7 @@ def create_pdf_report(algo_type, model, report_params):
 		    		("Class Distribution", pdf_plot_class_distribution, (report_params["y_pred"],))
 		    	]
 		    	# n = y_test.nunique()
-		    	if n == 2:
+		    	if n == 2 and report_params['y_proba'] is not report_params['y_pred']:
 		    		plot_functions.append(("ROC Curve", pdf_plot_roc_curve, (report_params["y_test"], report_params["y_proba"])))
 		    		plot_functions.append(("Precision-Recall Curve", pdf_plot_precision_recall_curve, (report_params["y_test"], report_params["y_proba"])))
 		    else:
@@ -824,7 +824,10 @@ def algorithm(df, demo="no"):
 					if model_download_btn:
 						model_download(se, model)
 
-					y_proba = model.predict_proba(X_test)
+					try:
+						y_proba = model.predict_proba(X_test)
+					except:
+						y_proba = y_pred
 
 					# accuracy = accuracy_score(y_test, y_pred)
 					train_score = model.score(X_train, y_train)
@@ -858,9 +861,9 @@ def algorithm(df, demo="no"):
 						train_color = "red"
 					if test_score < 0.5:
 						test_color = "red"
-					st.progress(train_score, f"# Train Accuracy : :{train_color}[{train_score*100:.4f} %]")
+					st.progress(train_score if train_score > 0 else 0, f"# Train Accuracy : :{train_color}[{train_score*100:.4f} %]")
 					st.write("")
-					st.progress(test_score, f"# Test Accuracy : :{test_color}[{test_score*100:.4f} %]")
+					st.progress(test_score if test_score > 0 else 0, f"# Test Accuracy : :{test_color}[{test_score*100:.4f} %]")
 
 					# st.subheader(f"train accuracy: {train_score*100:.4f} %")
 					# st.subheader(f"test accuracy: {test_score*100:.4f} %")
@@ -887,7 +890,10 @@ def algorithm(df, demo="no"):
 
 					tab1, tab2 = st.tabs(["Interactive", "Normal"])
 					n = y_test.nunique()
-					y_proba = model.predict_proba(X_test)
+					try:
+						y_proba = model.predict_proba(X_test)
+					except:
+						y_proba = y_pred
 					with tab1:
 						st.write("")
 						st.subheader("Confusion Matrix")
@@ -901,7 +907,7 @@ def algorithm(df, demo="no"):
 						ifig2 = intr_plot_class_distribution(y_pred)
 						st.plotly_chart(ifig2)
 
-						if n == 2:
+						if n == 2 and y_proba is not y_pred:
 							st.subheader("")
 							st.subheader("ROC Curve")
 							ifig3 = intr_plot_roc_curve(y_test, y_proba)
@@ -926,7 +932,7 @@ def algorithm(df, demo="no"):
 						fig2 = plot_class_distribution(y_pred)
 						st.pyplot(fig2)
 
-						if n == 2:
+						if n == 2 and y_proba is not y_pred:
 							st.subheader("")
 							st.subheader("ROC Curve")
 							st.write("")
@@ -1020,9 +1026,9 @@ def algorithm(df, demo="no"):
 						train_color = "red"
 					if test_score < 0.5:
 						test_color = "red"
-					st.progress(train_score, f"# Train Score : :{train_color}[{train_score:.4f}]")
+					st.progress(train_score if train_score > 0 else 0, f"# Train Score : :{train_color}[{train_score:.4f}]")
 					st.write("")
-					st.progress(test_score, f"# Test Score : :{test_color}[{test_score:.4f}]")
+					st.progress(test_score if test_score > 0 else 0, f"# Test Score : :{test_color}[{test_score:.4f}]")
 					st.subheader("")
 
 					col1, col2 = st.columns(2, gap="large")
