@@ -68,22 +68,54 @@ def params_clf(model_name):
 	if model_name == "Logistic Regression":
 		params["solver"] = st.sidebar.selectbox(
 			"solver",
-			("lbfgs", "liblinear", "newton-cg", "newton-cholesky", "sag", "saga")
+			("lbfgs", "liblinear", "newton-cg", "newton-cholesky", "sag", "saga"),
+			help = """
+			1) lbfgs : It optimizes parameters like regularization strength (C) and iterations (max_iter) using Grid or Random Search to improve performance and reduce overfitting. 
+
+			2) liblinear :  It optimizes parameters like regularization strength (C) and loss function type using Grid or Random Search to enhance performance and reduce overfitting.
+
+			3) newton-cg : It optimizes parameters like regularization strength (C) and iterations using Grid or Random Search to enhance performance and reduce overfitting.
+
+			4) newton-Cholesky : It optimizes parameters such as regularization strength (C) and maximum iterations using Grid or Random Search to improve performance and prevent overfitting. 
+
+			5) sag : It adjusts parameters like regularization strength (C) and iterations using Grid or Random Search to optimize accuracy and reduce overfitting. 
+
+			6) saga : It involves optimizing parameters such as regularization strength (C) and iteration limits using Grid or Random Search to enhance model performance and minimize overfitting.
+			"""
 			)
 		params["penalty"] = st.sidebar.selectbox(
 			"penalty",
-			("l2", "l1", "elasticnet")
+			("l2", "l1", "elasticnet"),
+			help = """
+			1) L1 : It focuses on optimizing the regularization strength (C) to encourage sparsity in the model, using Grid or Random Search.
+
+			2) L2 : It also optimizes regularization strength (C) but aims to minimize the overall coefficient's size without enforcing sparsity, using Grid or Random Search.
+
+			3) elasticnet : It optimizes regularization strength (C) and the mixing parameter (l1_ratio) using Grid or Random Search to balance between L1 and L2 penalties.
+			"""
 			)
-		params["C"] = st.sidebar.slider("C", 0.01, 1.0, 0.9)
+		params["C"] = st.sidebar.slider("C", 0.01, 1.0, 0.9, help = "Inverse of regularization strength and must be a positive float.")
 	elif model_name == "KNN":
 		params["n_neighbors"] = st.sidebar.slider("n_neighbors", 2, 20, 5)
 		params["weights"] = st.sidebar.selectbox(
 			"weights",
-			("uniform", "distance")
+			("uniform", "distance"),
+			help = """
+			1) uniform : It focuses on optimizing the number of neighbors (K) using Grid or Random Search to enhance classification accuracy.
+
+			2) distance : It focuses on optimizing the number of neighbors (K) and distance metrics to enhance classification accuracy by weighting closer neighbors more heavily.
+			"""
 			)
 		params["metric"] = st.sidebar.selectbox(
 			"metric",
-			("minkowski", "euclidean", "manhattan")
+			("minkowski", "euclidean", "manhattan"),
+			help = """
+			1) minkowski : It optimizes the number of neighbors (K) and the distance parameter (p) to enhance classification accuracy by adjusting distance calculations.
+
+			2) Euclidean : It involves optimizing the number of neighbors (K) to enhance classification accuracy by measuring straight-line distances between points.
+
+			3) Manhattan : It optimizes the number of neighbors (K) to improve classification accuracy by calculating distances based on absolute differences.
+			"""
 			)
 	elif model_name == "SVM":
 		params["C"] = st.sidebar.slider("C", 0.1, 100.0, 1.0)
@@ -117,7 +149,14 @@ def params_clf(model_name):
 		params["max_depth"] = st.sidebar.slider("max_depth", 1, 10, 1)
 		params["max_features"] = st.sidebar.selectbox(
 			"max_features",
-			("sqrt", "log2", None)
+			("sqrt", "log2", None),
+			help = """
+			1) sqrt : It optimizes the number of features considered at each split to improve model performance and reduce overfitting.
+
+			2) log2 : It involves optimizing the number of features used at each split to enhance model performance and mitigate overfitting. 
+
+			3) none : It allows all features to be considered at each split, potentially enhancing model accuracy but increasing the risk of overfitting.
+			"""
 			)
 		params["max_leaf_nodes"] = st.sidebar.slider("max_leaf_nodes", 3, 9, 3)
 	return params
@@ -173,12 +212,34 @@ def params_reg(model_name):
 		params["copy_X"] = st.sidebar.selectbox("copy_X", (True, False))
 	elif model_name == "Ridge Regression":
 		params["alpha"] = st.sidebar.slider("alpha", 0.0, 10.0, 0.5)
-		params["fit_intercept"] = st.sidebar.selectbox("fit_intercept", (True, False))
-		params["solver"] = st.sidebar.selectbox("solver", ("auto", "svd", "cholesky", "lsqr", "sparse_cg", "sag", "saga", "lbfgs"))
+		params["fit_intercept"] = st.sidebar.selectbox("fit_intercept", (True, False), help = "It determines whether to include the bias term, affecting model accuracy and interpretation by optimizing how the regression line fits the data.")
+		params["solver"] = st.sidebar.selectbox("solver", ("auto", "svd", "cholesky", "lsqr", "sparse_cg", "sag", "saga", "lbfgs"),
+			help = """
+			1) auto : It optimizes the algorithm selection based on data characteristics, enhancing performance while efficiently managing computational resources.
+
+			2) svd : It involves optimizing the regularization strength (alpha) to enhance model performance and prevent overfitting while ensuring efficient computation.
+
+			3) Cholesky : It involves optimizing the regularization strength (alpha) to improve model performance for small to medium-sized problems with dense matrices.
+
+			4) lsqr : It involves optimizing the regularization strength to enhance model performance and ensure efficient handling of large datasets using an iterative approach.
+
+			5) sparse_cg : It involves optimizing the regularization strength to enhance performance and specifically targets sparse problems using conjugate gradient techniques for improved efficiency. 
+
+			6) sag : It is an iterative method suitable for large datasets and is efficient with smooth loss functions and focuses on optimizing the regularization strength.
+
+			7) saga : It extends SAG by supporting non-smooth penalties like L1 regularization, and improves model performance and efficiently handle large datasets. 
+
+			8) lbfgs : It is a second-order optimization method that provides faster convergence for problems with smooth loss functions to improve model performance.
+			""")
 	elif model_name == "Lasso Regression":
 		params["alpha"] = st.sidebar.slider("alpha", 0.0, 10.0, 0.5)
-		params["fit_intercept"] = st.sidebar.selectbox("fit_intercept", (True, False))
-		params["selection"] = st.sidebar.selectbox("selection", ("cyclic", "random"))
+		params["fit_intercept"] = st.sidebar.selectbox("fit_intercept", (True, False), help = "It decides whether to include the bias term, influencing model accuracy and performance by optimizing the fit of the regression line to the data.")
+		params["selection"] = st.sidebar.selectbox("selection", ("cyclic", "random"),
+			help = """
+			1) cyclic : It optimizes feature selection by iteratively updating coefficients, enhancing model performance and efficiency for sparse data.
+
+			2) random : It enhances feature selection by randomly updating coefficients, improving model performance and efficiency, especially in high-dimensional datasets.
+			""")
 	elif model_name == "Elastic Net":
 		params["alpha"] = st.sidebar.slider("alpha", 0.0, 10.0, 0.5)
 		params["fit_intercept"] = st.sidebar.selectbox("fit_intercept", (True, False))
@@ -193,7 +254,12 @@ def params_reg(model_name):
 		params["C"] = st.sidebar.slider("C", 0.1, 100.0, 1.0)
 		params["gamma"] = st.sidebar.selectbox(
 			"gamma",
-			("scale", "auto")
+			("scale", "auto"),
+			help = """
+			1) auto : It adjusts the kernel coefficient based on feature count, optimizing model performance and decision boundaries.
+
+			2) scale : It adjusts the kernel coefficient based on feature count and variance, optimizing model performance and decision boundaries. 
+			"""
 			)
 		params["kernel"] = st.sidebar.selectbox(
 			"kernel",
@@ -203,8 +269,22 @@ def params_reg(model_name):
 		if params["kernel"] == "poly":
 			params["degree"] = st.sidebar.slider("degree", 2, 6, 3)
 	elif model_name == "Decision Tree":
-		params["criterion"] = st.sidebar.selectbox("criterion", ("squared_error", "friedman_mse", "absolute_error", "poisson"))
-		params["splitter"] = st.sidebar.selectbox("splitter", ("best", "random"))
+		params["criterion"] = st.sidebar.selectbox("criterion", ("squared_error", "friedman_mse", "absolute_error", "poisson"),
+			help = """
+			1) squared_error : It minimizes the variance of predictions to reduce prediction error and improve accuracy.
+
+			2) friedman_mse : It improves computational efficiency for large datasets and enhance model performance by minimizing mean squared error.
+
+			3) absolute_error : It focuses on minimizing median prediction errors for robustness against outliers to improve model performance.
+
+			4) poisson : It is suited for count data, optimizing predictions based on the Poisson distribution.
+			""")
+		params["splitter"] = st.sidebar.selectbox("splitter", ("best", "random"),
+			help = """
+			1) best : It chooses the optimal feature for each split based on maximum information gain, enhancing model accuracy and improving overall performance.
+
+			2) random : It enhances model diversity by selecting features randomly for each split, which can help reduce overfitting while maintaining reasonable accuracy.
+			""")
 		params["min_samples_leaf"] = st.sidebar.slider("min_samples_leaf", 1, 20, 1)
 		params["min_samples_split"] = st.sidebar.select_slider(
 			"min_samples_split",
@@ -279,13 +359,31 @@ model_select = ""
 
 def classification():
 	global model_select
+	clf_hover_text = """
+	1) Logistic Regression : It is a binary classification method that models the probability of an outcome using a logistic function.
+
+	2) KNN (K Nearest Neighbours) : KNN is a simple algorithm that classifies data by comparing it to the closest labeled points based on distance.
+
+	3) SVM : SVM  is a classification method that separates data into classes by finding the best boundary between them.
+
+	4) Naive Bayes : It is a probabilistic classification algorithm that uses Bayes' theorem to predict class probabilities, assuming that features are independent.
+
+	5) Decision Tree : It is a hierarchical model that splits data into branches based on feature values, creating a tree-like structure for classification or regression decisions.
+
+	6) Random Forest : It is an ensemble learning technique that creates multiple decision trees and aggregates their predictions to improve accuracy and minimize overfitting.
+"""
+
+	ht_hover_text = """Hyperparameter tuning is the problem of choosing a set of optimal hyperparameters for a learning algorithm"""
+
 	model_select = st.sidebar.selectbox(
 	'Select a model',
-	('Logistic Regression', 'KNN', 'SVM', 'Naive Bayes', 'Decision Tree', 'Random Forest')
+	('Logistic Regression', 'KNN', 'SVM', 'Naive Bayes', 'Decision Tree', 'Random Forest'),
+	help=clf_hover_text
 	)
 	tune_choice = st.sidebar.selectbox(
 	'Hyperparameter Tuning',
-	('Manually', 'Automatically')
+	('Manually', 'Automatically'),
+	help=ht_hover_text
 	)
 	if tune_choice == "Manually":
 		params = params_clf(model_select)
@@ -299,13 +397,33 @@ def classification():
 
 def regression():
 	global model_select
+	reg_hover_text = """
+	1) Linear Regression : Linear regression is a data analysis technique that predicts the value of unknown data by using another related and known data value.
+
+	2) Ridge regression : It is a linear regression technique that adds a penalty term to the loss function, which helps prevent overfitting by constraining the size of the coefficients.
+
+	3) Lasso Regression : It is a linear regression method that adds a penalty to the loss function, promoting sparsity in coefficients and aiding in variable selection to prevent overfitting.
+
+	4) Elastic Net : It is a linear regression method that combines Lasso and Ridge penalties, promoting both sparsity and group selection to enhance prediction accuracy and handle multicollinearity.
+
+	5) KNN : KNN for regression predicts a target value by averaging the values of the k nearest neighbors, making it a simple and effective non-parametric method.
+
+	6) SVM : It predicts continuous values by fitting a function that maximizes the margin between predicted and actual data, ensuring robustness against outliers.
+
+	7) Decision Tree : It predicts continuous values by splitting data based on feature values, with each leaf representing a predicted value, making it simple and interpretable.
+
+	8) Random Forest : It is an ensemble method that builds multiple decision trees and averages their predictions, enhancing accuracy and reducing overfitting.
+"""
+	ht_hover_text = """Hyperparameter tuning is the problem of choosing a set of optimal hyperparameters for a learning algorithm"""
 	model_select = st.sidebar.selectbox(
 	'Select a model',
-	('Linear Regression', 'Ridge Regression', 'Lasso Regression', 'Elastic Net', 'KNN', 'SVM', 'Decision Tree', 'Random Forest')
+	('Linear Regression', 'Ridge Regression', 'Lasso Regression', 'Elastic Net', 'KNN', 'SVM', 'Decision Tree', 'Random Forest'),
+	help = reg_hover_text
 	)
 	tune_choice = st.sidebar.selectbox(
 	'Hyperparameter Tuning',
-	('Manually', 'Automatically')
+	('Manually', 'Automatically'),
+	help = ht_hover_text
 	)
 	if tune_choice == "Manually":
 		params = params_reg(model_select)
@@ -762,6 +880,7 @@ def algorithm(df, demo="no"):
 			target = st.sidebar.selectbox(
 				'Select target value',
 				cols,
+				help = "The column whose value will be predicted"
 				)
 		else:
 			if demo == "clf_demo":
@@ -787,7 +906,12 @@ def algorithm(df, demo="no"):
 				if demo == "no":
 					algo_type = st.sidebar.selectbox(
 						'Select an algorithm type',
-						('Classification', 'Regression')
+						('Classification', 'Regression'),
+						help = """
+						1) Classification : Classification is a supervised learning task that categorizes data into predefined labels based on patterns learned from labeled training data.
+
+						2) Regression : Regression is also a supervised machine learning technique, used to predict the value of the dependent variable for new, unseen data.
+						"""
 						)
 				else:
 					if demo == "clf_demo":
@@ -1162,7 +1286,12 @@ def upload_file():
 choice = st.sidebar.selectbox("Choose data upload option", ("-- select --", "Try with demo data", "Upload data file"))
 if choice == "Try with demo data":
 	global filename
-	f_choice = st.sidebar.selectbox("Choose data file", ("-- select --", "Wine-data", "Housing-data"))
+	f_choice = st.sidebar.selectbox("Choose data file", ("-- select --", "Wine-data", "Housing-data"),
+	help = """
+	1) Wine-data : A data of ingredients in wine, for classification task.
+
+	2) Housing-data : A data of housing price, for regression task.
+	""")
 	if f_choice == "Wine-data":
 		try:
 			df = pd.read_csv("data_files/wine-data.csv")
