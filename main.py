@@ -125,7 +125,16 @@ def params_clf(model_name):
 			)
 		params["kernel"] = st.sidebar.selectbox(
 			"kernel",
-			("rbf", "linear", "sigmoid", "poly")
+			("rbf", "linear", "sigmoid", "poly"),
+			help = """
+			1) rbf : It focuses on C and gamma to control the kernel's spread and flexibility in decision boundaries to improve classification accuracy and model performance.
+
+			2) linear : It focuses on optimizing the regularization parameter (C) to enhance model performance and improve classification accuracy.
+
+			3) sigmoid : It adjusts the regularization strength (C) and the kernel coefficient (gamma) to boost classification performance.
+
+			4) poly : It adjusts the regularization parameter (C) and polynomial degree to improve classification performance.
+			"""
 			)
 		params["degree"] = 3
 		if params["kernel"] == "poly":
@@ -248,7 +257,12 @@ def params_reg(model_name):
 		params["n_neighbors"] = st.sidebar.slider("n_neighbors", 2, 20, 5)
 		params["weights"] = st.sidebar.selectbox(
 			"weights",
-			("uniform", "distance")
+			("uniform", "distance"),
+			help = """
+			1) uniform : It focuses on optimizing the number of neighbors (K) using Grid or Random Search to enhance classification accuracy.
+
+			2) distance : It focuses on optimizing the number of neighbors (K) and distance metrics to enhance classification accuracy by weighting closer neighbors more heavily.
+			"""
 			) 
 	elif model_name == "SVM":
 		params["C"] = st.sidebar.slider("C", 0.1, 100.0, 1.0)
@@ -263,7 +277,16 @@ def params_reg(model_name):
 			)
 		params["kernel"] = st.sidebar.selectbox(
 			"kernel",
-			("rbf", "linear", "sigmoid", "poly")
+			("rbf", "linear", "sigmoid", "poly"),
+			help = """
+			1) rbf : It focuses on C and gamma to control the kernel's spread and flexibility in decision boundaries to improve classification accuracy and model performance.
+
+			2) linear : It focuses on optimizing the regularization parameter (C) to enhance model performance and improve classification accuracy.
+
+			3) sigmoid : It adjusts the regularization strength (C) and the kernel coefficient (gamma) to boost classification performance.
+
+			4) poly : It adjusts the regularization parameter (C) and polynomial degree to improve classification performance.
+			"""
 			)
 		params["degree"] = 3
 		if params["kernel"] == "poly":
@@ -294,7 +317,14 @@ def params_reg(model_name):
 		params["n_estimators"] = st.sidebar.slider("n_estimators", 50, 200, 100)
 		params["max_features"] = st.sidebar.selectbox(
 			"max_features",
-			("sqrt", "log2", None)
+			("sqrt", "log2", None),
+			help = """
+			1) sqrt : It optimizes the number of features considered at each split to improve model performance and reduce overfitting.
+
+			2) log2 : It involves optimizing the number of features used at each split to enhance model performance and mitigate overfitting. 
+
+			3) none : It allows all features to be considered at each split, potentially enhancing model accuracy but increasing the risk of overfitting.
+			"""
 			)
 		params["min_samples_leaf"] = st.sidebar.slider("min_samples_leaf", 1, 20, 1)
 		params["min_samples_split"] = st.sidebar.select_slider(
