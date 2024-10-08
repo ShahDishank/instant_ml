@@ -14,12 +14,18 @@ from sklearn.svm import SVC, SVR
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score, roc_curve, auc, precision_recall_curve
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix, mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score, roc_curve, auc, precision_recall_curve
 from io import BytesIO
 import pickle
 from fpdf import FPDF
 import tempfile
 import datetime
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import NearMiss
+from collections import Counter
+from imblearn.under_sampling import RandomUnderSampler
+import smogn
+from scipy.stats import shapiro
 
 st.set_page_config(
     page_title="Instant ML",
@@ -61,7 +67,6 @@ def get_data(df, target):
 	y = df[target]
 	X = df.drop(target, axis=1, inplace=False)
 	return X,y
-
 
 def params_clf(model_name):
 	params = dict()
@@ -172,6 +177,7 @@ def params_clf(model_name):
 
 @st.cache_resource
 def model_clf(model_name, params):
+	global cmodels
 	model = None
 	if model_name == "Logistic Regression":
 		model = LogisticRegression(solver = params["solver"], penalty = params["penalty"], C = params["C"])
@@ -388,6 +394,7 @@ def grid_search_cv_reg(model_name):
 model_select = ""
 
 def classification():
+	global cmodels
 	global model_select
 	clf_hover_text = """
 	1) Logistic Regression : It is a binary classification method that models the probability of an outcome using a logistic function.
@@ -465,15 +472,186 @@ def regression():
 	return model
 
 def show_data(df):
-	st.subheader(f"Shape of the Dataset: {df.shape}")
-	st.write("")
-	st.write("")
-	st.caption("Data Overview")
-	st.dataframe(df.head(), hide_index=True)
-	st.write("")
-	st.write("")
-	st.caption("Some Statistics")
-	st.table(df.describe())
+	with lt.container():
+		st.subheader(f"Shape of the Dataset: {df.shape}")
+		st.write("")
+		st.write("")
+		st.caption("Data Overview")
+		st.dataframe(df.head(), hide_index=True)
+		st.write("")
+		st.write("")
+		st.caption("Some Statistics")
+		st.table(df.describe())
+
+@st.cache_resource
+def determine_algo_type(df, target_column, unique_value_threshold=10):
+    # Step 1: Extract the target variable
+    target = df[target_column]
+    
+    # Step 2: Count unique values in the target variable
+    unique_values = target.nunique()
+    # print(f"Unique values in target variable: {unique_values}")
+
+    # Step 3: Determine task type based on unique values
+    if unique_values < unique_value_threshold:
+        return 'Classification'  # Indicates limited unique values, suggesting classification
+    else:
+        return 'Regression'       # Indicates a wider range of values, suggesting regression
+
+# Function to check if the dataset is imbalanced
+@st.cache_resource
+def check_imbalance(y):
+    counter = Counter(y)
+    # print(f"Class Distribution: {counter}")
+    majority_class = max(counter, key=counter.get)
+    minority_class = min(counter, key=counter.get)
+    imbalance_ratio = counter[majority_class] / counter[minority_class]
+    
+    if imbalance_ratio > 1.5:  # If imbalance is significant
+    	st.sidebar.info(f"""
+    		Given Dataset's Class Distribution:
+
+			{counter}""")
+    	st.sidebar.error(f"The dataset is imbalanced with a ratio of {imbalance_ratio:.2f}")
+    	return True
+    else:
+    	st.sidebar.info("The dataset is significantly balanced.")
+    	return False
+
+# Function to perform oversampling (SMOTE) or undersampling (NearMiss)
+@st.cache_resource
+def handle_imbalance_clf(X, y, method='oversampling'):
+    if method == 'oversampling':
+        # print("Performing SMOTE oversampling...")
+        smote = SMOTE()
+        X_res, y_res = smote.fit_resample(X, y)
+    elif method == 'undersampling':
+        # print("Performing NearMiss undersampling...")
+        nearmiss = NearMiss()
+        X_res, y_res = nearmiss.fit_resample(X, y)
+    else:
+        print("Invalid method. Please choose 'oversampling' or 'undersampling'.")
+        return X, y
+    ctr = Counter(y_res)
+    st.sidebar.success(f"""
+    		The Dataset is now balanced! New class distribution:
+
+    		- {ctr}""")
+    return X_res, y_res
+
+# Function to check if the dataset is imbalanced based on skewness of target
+@st.cache_resource
+def check_skewness(y, threshold=1.0):
+    skewness = np.abs(y.skew())
+    # print(f"Skewness of the target variable: {skewness:.2f}")
+    if skewness > threshold:
+        st.sidebar.error(f"The target variable is skewed with an absolute skewness of {skewness:.2f}")
+        return True
+    else:
+        st.sidebar.info("The target variable is significantly unskewed!")
+        return False
+
+# Function to perform oversampling (SMOGN) or undersampling (Random UnderSampling)
+@st.cache_resource
+def handle_imbalance_reg(df, target, X, y, method='oversampling'):
+    if method == 'oversampling':
+        # print("Performing SMOGN oversampling for regression...")
+        # Apply SMOGN for regression oversampling
+        data_resampled = smogn.smoter(
+            data = df,            # input data
+            y = target,           # target variable name
+            rel_thres=0.8           # relevance threshold for determining minority/majority
+        )
+        X_resampled = data_resampled.drop(columns=[target])
+        y_resampled = data_resampled[target]
+    # elif method == 'undersampling':
+    #     # print("Performing Random Undersampling for regression...")
+    #     # Apply Random Undersampling for regression
+    #     rus = RandomUnderSampler()
+    #     X_resampled, y_resampled = rus.fit_resample(X, y)
+    else:
+        print("Invalid method. Please choose 'oversampling' or 'undersampling'.")
+        return X, y
+
+
+    old = df[target].describe()
+    new = y_resampled.describe()
+    
+    d = {"Old Target Distribution": [old[i] for i in range(len(old))], "New Target Distribution": [new[i] for i in range(len(new))]}
+    dfd = pd.DataFrame(d, index = [i for i in old.index.to_list()])
+    st.sidebar.table(dfd)
+
+    return X_resampled, y_resampled
+
+def is_gaussian(data):
+    """Check if numeric data is normally distributed using Shapiro-Wilk test."""
+    stat, p_value = shapiro(data)
+    # p-value > 0.05 indicates the data is normally distributed
+    return p_value > 0.05
+
+def recommend_classification_models(df, target):
+    """ Recommends classification models based on the dataset characteristics """
+    num_samples = df.shape[0]
+    num_features = df.shape[1]
+    
+    # Basic recommendations
+    recommendations = []
+    
+    # Binary Classification: Logistic Regression is good for binary cases
+    if df[target].nunique() == 2:
+        recommendations.append("Logistic Regression")
+
+    # Small dataset: KNN works well for smaller datasets
+    if num_samples < 1000:
+        recommendations.append("KNN")
+
+    # High dimensionality: SVM recommended for high-dimensional data
+    if num_features > 20:
+        recommendations.append("SVM")
+
+    # Categorical data: Naive Bayes performs well for categorical features
+    if df.apply(is_gaussian).mean() > 0.7:  # If 70% of the features are normally distributed
+        recommendations.append("Naive Bayes")
+    
+    # Decision Tree or Random Forest for larger, more complex data
+    recommendations.append("Decision Tree")
+    if num_samples > 5000:
+        recommendations.append("Random Forest")
+
+    return recommendations
+
+
+def recommend_regression_models(df, target):
+    """ Recommends regression models based on the dataset characteristics """
+    num_samples = df.shape[0]
+    num_features = df.shape[1]
+    
+    # Basic recommendations
+    recommendations = []
+    
+    # Simple linear relationships: Linear Regression for small datasets with linear features
+    recommendations.append("Linear Regression")
+
+    # Regularization for multicollinearity: Ridge, Lasso, and Elastic Net
+    if num_features > 20:
+        recommendations.append("Ridge Regression")
+        recommendations.append("Lasso Regression")
+        recommendations.append("Elastic Net")
+
+    # Small dataset: KNN works well for smaller datasets
+    if num_samples < 1000:
+        recommendations.append("KNN")
+
+    # High-dimensional or non-linear data: SVM
+    if num_features > 20 or num_samples > 10000:
+        recommendations.append("SVM")
+
+    # Decision Tree and Random Forest for non-linear and larger datasets
+    recommendations.append("Decision Tree")
+    if num_samples > 5000:
+        recommendations.append("Random Forest")
+
+    return recommendations
 
 
 def fetch_code(fname):
@@ -918,6 +1096,65 @@ def algorithm(df, demo="no"):
 			elif demo == "reg_demo":
 				target = "Price"
 		if target != "select":
+			X, y = get_data(df, target)
+			if not X.empty:
+				a_type = determine_algo_type(df, target)
+				c = 0
+				sampling = ""
+				if a_type == "Classification":
+					if check_imbalance(y):
+						sampling = st.sidebar.selectbox("Do you want to balance dataset?", ["select", "Yes", "No"])
+						if sampling == "Yes":
+							sampling_method = st.sidebar.selectbox("Select Method", ["select", "Oversampling", "Undersampling"],
+								help = """
+								1) Oversampling: Increases the number of minority class samples in a dataset to balance the class distribution.
+								
+								2) Undersampling: Reduces the number of majority class samples in a dataset to balance the class distribution.
+								""")
+							if sampling_method != "select":
+								X, y = handle_imbalance_clf(X, y, method=sampling_method.lower())
+								c = 1
+				else:
+					if check_skewness(y):
+						sampling = st.sidebar.selectbox("Do you want to balance dataset?", ["select", "Yes", "No"])
+						if sampling == "Yes":
+							sampling_method = st.sidebar.selectbox("Select Method", ["select", "Oversampling"],
+								help = """
+								Oversampling: Increases the number of minority class samples in a dataset to balance the class distribution.
+								""")
+							if sampling_method != "select":
+								X, y = handle_imbalance_reg(df, target, X, y, method=sampling_method.lower())
+								c = 1
+				if c == 1:
+					lt.empty()
+					st.sidebar.write(f"Shape of the Old Dataset: :red[**{df.shape}**]")
+					df = pd.concat([X, y], axis=1)
+					st.sidebar.write(f"Shape of the New Dataset: :green[{df.shape}]")
+					show_data(df)
+
+			if sampling == "No" or c == 1 or sampling == "":
+				st.write("")
+				if a_type == "Classification":
+					recommendations = recommend_classification_models(df, target)
+					if sampling == "No":
+						st.sidebar.info("""
+							Because of the Imbalanced Dataset
+
+							- **:green[Highly Recommended:]** Random Forest, Decision Tree, Logistic Regression, SVM
+							- **:red[Not Recommended:]** KNN, Naive Bayes
+							""")
+				else:
+					recommendations = recommend_regression_models(df, target)
+					if sampling == "No":
+						st.sidebar.info("""
+							Because of the Imbalanced Dataset
+
+							- **:green[Highly Recommended:]** Random Forest, Decision Tree, Ridge Regression, Lasso Regression, Elastic Net
+							- **:red[Not Recommended:]** KNN, SVM
+							""")
+				st.sidebar.info("Based on the Dataset Characteristics, Recommended Models are\n" + "\n".join(list(f"- {name}" for name in recommendations)))
+
+
 			st.sidebar.write("")
 			create_btn = st.sidebar.toggle("Create Model")
 			st.sidebar.write("")
@@ -934,9 +1171,10 @@ def algorithm(df, demo="no"):
 				st.write(f"- y_test: **{y_test.shape}**")
 
 				if demo == "no":
+					a_type = determine_algo_type(df, target)
 					algo_type = st.sidebar.selectbox(
 						'Select an algorithm type',
-						('Classification', 'Regression'),
+						('Classification', 'Regression'), index = 1 if a_type == "Regression" else 0,
 						help = """
 						1) Classification : Classification is a supervised learning task that categorizes data into predefined labels based on patterns learned from labeled training data.
 
@@ -1032,13 +1270,16 @@ def algorithm(df, demo="no"):
 					show = st.toggle("**Show Comparisons**", value=True)
 					if show:
 						count = st.slider("How many rows do you want to see", 1, 30, 5)
-						col1, col2 = st.columns(2)
-						with col1:
+						d = {"Actual Target Values": [y_test.head(count).to_list()[i] for i in range(count)], "Predicted Target Values": list([y_pred[:count][i] for i in range(count)])}
+						dfd = pd.DataFrame(d, index=[i for i in range(1, count+1)])
+						st.table(dfd)
+						# col1, col2 = st.columns(2)
+						# with col1:
 							# st.caption("Actual target values")
-							st.dataframe(y_test.head(count), hide_index = True, use_container_width = True, column_config = {target : "Actual Target Values"})
-						with col2:
+							# st.dataframe(y_test.head(count), hide_index = True, use_container_width = True, column_config = {target : "Actual Target Values"})
+						# with col2:
 							# st.caption("Predicted target values")
-							st.dataframe(y_pred[:count], hide_index = True, use_container_width = True, column_config = {"value" : "Predicted Target Values"})
+							# st.dataframe(y_pred[:count], hide_index = True, use_container_width = True, column_config = {"value" : "Predicted Target Values"})
 
 					st.subheader("")
 
@@ -1098,6 +1339,25 @@ def algorithm(df, demo="no"):
 							st.write("")
 							fig4 = plot_precision_recall_curve(y_test, y_proba)
 							st.pyplot(fig4)
+
+
+					st.subheader("")
+					st.subheader("Comparison of Your Created Models")
+					st.write("")
+					if "clf_results" not in st.session_state:
+						st.session_state.clf_results = dict()
+					# Collect metrics
+					# accuracy = accuracy_score(y_test, y_pred)
+					precision = precision_score(y_test, y_pred, average='weighted')
+					recall = recall_score(y_test, y_pred, average='weighted')
+					f1 = f1_score(y_test, y_pred, average='weighted')
+
+					# Append results
+					if filename not in st.session_state.clf_results:
+						st.session_state.clf_results[filename] = dict()
+					st.session_state.clf_results[filename][model_select] = [model_select, train_score, test_score, precision, recall, f1, str(cm)]
+					comparision_df = pd.DataFrame(list(st.session_state.clf_results[filename].values()), columns=["Model", "Train Score", "Test Score", "Precision", "Recall", "F1-Score", "Confusion Matrix"], index=[i for i in range(1, len(st.session_state.clf_results[filename].values())+1)])
+					st.dataframe(comparision_df)
 
 
 					st.header("")
@@ -1204,11 +1464,14 @@ def algorithm(df, demo="no"):
 					show = st.toggle("**Show Comparisons**", value=True)
 					if show:
 						count = st.slider("How many rows do you want to see", 1, 30, 5)
-						col1, col2 = st.columns(2)
-						with col1:
-							st.dataframe(y_test.head(count), hide_index = True, use_container_width = True, column_config = {target : "Actual Target Values"})
-						with col2:
-							st.dataframe(y_pred[:count], hide_index = True, use_container_width = True, column_config = {"value" : "Predicted Target Values"})
+						d = {"Actual Target Values": [y_test.head(count).to_list()[i] for i in range(count)], "Predicted Target Values": list([y_pred[:count][i] for i in range(count)])}
+						dfd = pd.DataFrame(d, index=[i for i in range(1, count+1)])
+						st.table(dfd)
+						# col1, col2 = st.columns(2)
+						# with col1:
+						# 	st.dataframe(y_test.head(count), hide_index = True, use_container_width = True, column_config = {target : "Actual Target Values"})
+						# with col2:
+						# 	st.dataframe(y_pred[:count], hide_index = True, use_container_width = True, column_config = {"value" : "Predicted Target Values"})
 
 					st.subheader("")
 
@@ -1283,6 +1546,19 @@ def algorithm(df, demo="no"):
 						st.write("")
 						fig4 = plot_error_distribution(y_test, y_pred)
 						st.pyplot(fig4)
+
+					st.subheader("")
+					st.subheader("Comparison of Your Created Models")
+					st.write("")
+					if "reg_results" not in st.session_state:
+						st.session_state.reg_results = dict()
+
+					# Append results
+					if filename not in st.session_state.reg_results:
+						st.session_state.reg_results[filename] = dict()
+					st.session_state.reg_results[filename][model_select] = [model_select, train_score, test_score, mae, mse, rmse, r2]
+					comparision_df = pd.DataFrame(list(st.session_state.reg_results[filename].values()), columns=["Model", "Train Score", "Test Score", "MAE", "MSE", "RMSE", "R2 Score"], index=[i for i in range(1, len(st.session_state.reg_results[filename].values())+1)])
+					st.dataframe(comparision_df)
 
 					st.header("")
 					gen = st.toggle("**Generate Code**")
