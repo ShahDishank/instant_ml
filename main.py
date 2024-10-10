@@ -15,6 +15,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix, mean_absolute_error, mean_squared_error, root_mean_squared_error, r2_score, roc_curve, auc, precision_recall_curve
+import io
 from io import BytesIO
 import pickle
 from fpdf import FPDF
@@ -26,6 +27,9 @@ from collections import Counter
 from imblearn.under_sampling import RandomUnderSampler
 import smogn
 from scipy.stats import shapiro
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import LabelEncoder,OrdinalEncoder,OneHotEncoder
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 st.set_page_config(
     page_title="Instant ML",
@@ -67,6 +71,223 @@ def get_data(df, target):
 	y = df[target]
 	X = df.drop(target, axis=1, inplace=False)
 	return X,y
+
+def check_dataset(df):
+	null_columns = df.columns[df.isnull().any()].tolist()
+	n = 0
+	c = 0
+	if null_columns:
+		st.sidebar.info("Columns with null values\n" + "\n".join(list(f"- {col}" for col in null_columns)))
+		n = 1
+	else:
+		st.sidebar.info("No columns with null values.")
+
+	categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
+	if categorical_columns:
+		st.sidebar.info("Columns with categorical values\n" + "\n".join(list(f"- {col}" for col in categorical_columns)))
+		c = 1
+	else:
+		st.sidebar.info("No columns with categorical values.")
+	return n,c
+
+def dp_col(dfc,cnt):
+    dmv_col_name = st.sidebar.multiselect("Select Columns",dfc.columns,placeholder="Select", key=cnt)
+    dfc = dfc.drop(dmv_col_name,axis=1)
+    return dfc
+
+def simple_imputation(df, cnt, method='delete', fill_value=0):
+	null_cols = df.columns[df.isnull().any()].tolist()
+	dfc = df.copy()
+	if method == 'delete':
+		if len(null_cols) == 0:
+			st.sidebar.write("No columns found with null values")
+		else:
+			cols = st.sidebar.multiselect("Select Columns", null_cols, default=null_cols[0], key=f"del{cnt}")
+			dfc = df.dropna(subset=cols)
+	elif method == 'mean' or method == 'median':
+	    imputer = SimpleImputer(strategy=method)
+	    numeric_columns = df.select_dtypes(include=[np.number]).columns.to_list()
+	    null_columns = [col for col in numeric_columns if df[col].isnull().any()]
+	    if len(null_columns) == 0:
+	    	st.sidebar.write("No numeric columns found. Use different technique")
+	    else:
+	    	cols = st.sidebar.multiselect("Select from these numeric columns", null_columns, default=null_columns[0], key=f"mm{cnt}")
+	    	dfc = df.copy()
+	    	dfc[cols] = imputer.fit_transform(dfc[cols])
+	elif method == 'most_frequent':
+	    imputer = SimpleImputer(strategy='most_frequent')
+	    columns = st.sidebar.multiselect("Select Columns", null_cols, default=null_cols[0], key=f"mf{cnt}")
+	    dfc = df.copy()
+	    dfc[columns] = imputer.fit_transform(dfc[columns])
+	elif method == 'ffill' or method == 'bfill':
+	    if len(null_cols) == 0:
+	    	st.sidebar.write("No columns found with null values")
+	    else:
+	    	cols = st.sidebar.multiselect("Select Columns", null_cols, default=null_cols[0], key=f"fill{cnt}")
+	    	dfc = df.copy()
+	    	dfc[cols] = df[cols].fillna(method=method)
+	elif method == 'constant':
+	    imputer = SimpleImputer(strategy='constant', fill_value=fill_value)
+	    numeric_columns = df.select_dtypes(include=[np.number]).columns.to_list()
+	    null_columns = [col for col in numeric_columns if df[col].isnull().any()]
+	    if len(null_columns) == 0:
+	    	st.sidebar.write("No numeric columns found. Use different technique")
+	    else:
+	    	cols = st.sidebar.multiselect("Select from these numeric columns", null_columns, default=null_columns[0], key=f"con{cnt}")
+	    	dfc = df.copy()
+	    	dfc[cols] = imputer.fit_transform(dfc[cols])
+	else:
+	    raise ValueError("Wrong value!")
+	return dfc
+
+def categorical_cols(df):
+    return df.select_dtypes(include=['object', 'category']).columns.tolist()
+
+def label_encoding(df,columns):
+	label_encoder = LabelEncoder()
+	for col in columns:
+		df[col] = label_encoder.fit_transform(df[col])
+	return df
+
+def ordinal_encoding(df,columns):
+    encoder = OrdinalEncoder()
+    df[columns] = encoder.fit_transform(df[columns])
+    return df
+
+def one_hot_encoding(df,columns):
+    try:
+        encoder = OneHotEncoder(sparse_output=False)
+        encoded_data = encoder.fit_transform(df[columns])
+        df_encoded = pd.DataFrame(encoded_data,columns=encoder.get_feature_names_out(columns))
+        df = df.drop(columns,axis=1)
+        df = pd.concat([df,df_encoded],axis=1)
+        return df
+    except:
+        return pd.get_dummies(df, columns=cols)
+
+def is_gaussian_data(df, col_name, alpha=0.05):
+    stat, p = shapiro(df[col_name])
+    return p > alpha
+
+def standardize(df, col_names):
+    scaler = StandardScaler()
+
+    df[col_names] = scaler.fit_transform(df[[col_names]])
+    return df
+
+def normalize(df, col_names):
+    scaler = MinMaxScaler()
+
+    df[col_names] = scaler.fit_transform(df[[col_names]])
+    return df
+
+def feat_scal(df, cnt):
+    col_name = st.sidebar.multiselect("Select Columns", df.columns, placeholder="Select", key=f"fsms{cnt}")
+
+    gaussian_cols = []
+    non_gaussian_cols = []
+
+    for col in col_name:
+    	if is_gaussian_data(df, col):
+    		gaussian_cols.append(col)
+    	else:
+    		non_gaussian_cols.append(col)
+
+    std = f'''
+    The following columns :green[**are of Gaussian/Symmetric Distribution**]
+    - Recommended method: :green[**Standardization**]
+    - Columns: :green[**{', '.join(gaussian_cols)}**]
+    '''
+
+    nrm = f'''
+    The following columns :red[**are not of Gaussian/Symmetric Distribution**]
+    - Recommended method: :red[**Normalization**]
+    - Columns: :red[**{', '.join(non_gaussian_cols)}**]
+    '''
+
+    if gaussian_cols:
+        st.sidebar.info(std)
+    if non_gaussian_cols:
+        st.sidebar.info(nrm)
+
+    if len(col_name) != 0:
+        for col in col_name:
+            method = st.sidebar.selectbox(f"Select Method of Scaling for :blue[**{col}**]", ["Normalization", "Standardization"], index=1 if col in gaussian_cols else 0, placeholder="Select Here", key=f"fssb_{cnt}_{col}")
+            if method == "Standardization":
+                df = standardize(df, col)
+            else:
+                df = normalize(df, col)
+    return df
+
+def data_clean(df,x):
+	global null, categorical
+	show_data(df)
+	option = ["Drop Columns","Deal with Null Values","Deal with Categorical Features","Feature Scaling"]
+	if null == 0:
+		option.remove("Deal with Null Values")
+	if categorical == 0:
+		option.remove("Deal with Categorical Features")
+	sel = st.sidebar.selectbox("Select Option",option, key=f"s{x}")
+	if sel == "Drop Columns":
+	    df = dp_col(df,x+1)
+	elif sel == "Deal with Null Values":
+	    imputation_method = st.sidebar.selectbox(
+	        "Select Method",
+	        ["Delete Rows with Null Values", "Mean", "Median", "Most Frequent", "Fill Forward", "Fill Backward", "Constant"],
+	        key=f"impute{x}"
+	    )
+	    
+	    if imputation_method == "Delete Rows with Null Values":
+	        df = simple_imputation(df, method='delete', cnt=x+1)
+	    elif imputation_method == "Mean":
+	        df = simple_imputation(df, method='mean', cnt=x+1)
+	    elif imputation_method == "Median":
+	        df = simple_imputation(df, method='median', cnt=x+1)
+	    elif imputation_method == "Most Frequent":
+	        df = simple_imputation(df, method='most_frequent', cnt=x+1)
+	    elif imputation_method == "Fill Forward":
+	        df = simple_imputation(df, method='ffill', cnt=x+1)
+	    elif imputation_method == "Fill Backward":
+	        df = simple_imputation(df, method='bfill', cnt=x+1)
+	    elif imputation_method == "Constant":
+	        fill_value = st.sidebar.number_input("Enter a value")
+	        df = simple_imputation(df, method='constant', fill_value=fill_value, cnt=x+1)
+	elif sel == "Deal with Categorical Features":
+		encoding_method = st.sidebar.selectbox(
+		    "Select Encoding Method",
+		    ["Label Encoding", "Ordinal Enconding", "One-Hot Encoding"],
+		    key=f"encoding{x}"
+		)
+		if encoding_method == "Label Encoding":
+			c_cols = categorical_cols(df.copy())
+			le_cols = st.sidebar.multiselect("Select Columns", c_cols, placeholder="Select", key=f"lems{x}")
+			if len(le_cols) != 0:
+				df = label_encoding(df, le_cols)
+		elif encoding_method == "Ordinal Enconding":
+		    c_cols = categorical_cols(df.copy())
+		    oe_cols = st.sidebar.multiselect("Select Columns", c_cols, placeholder="Select", key=f"oems{x}")
+		    if len(oe_cols) != 0:
+		    	df = ordinal_encoding(df, oe_cols)
+		elif encoding_method == "One-Hot Encoding":
+			c_cols = categorical_cols(df.copy())
+			ohe_cols = st.sidebar.multiselect("Select Columns", c_cols, placeholder="Select", key=f"ohems{x}")
+			if len(ohe_cols) != 0:
+				df = one_hot_encoding(df, ohe_cols)
+	elif sel == "Feature Scaling":
+	    df = feat_scal(df, x+1)
+
+	if st.sidebar.toggle(":blue[Next]", key=f"tn{x+1}"):
+		lt.empty()
+		df = data_clean(df, x+1)
+	elif st.sidebar.toggle(":red[Quit]", key=f"tq{x+1}"):
+		lt.empty()
+		st.sidebar.write("")
+		st.sidebar.success("After Data Preprocessing...")
+		n, c = check_dataset(df)
+		global clean
+		clean = True
+		return df
+	return df
 
 def params_clf(model_name):
 	params = dict()
@@ -482,6 +703,12 @@ def show_data(df):
 		st.write("")
 		st.caption("Some Statistics")
 		st.table(df.describe())
+		st.write("")
+		st.subheader("Data Info")
+		buffer = io.StringIO()
+		df.info(buf=buffer)
+		s = buffer.getvalue()
+		st.text(s)
 
 @st.cache_resource
 def determine_algo_type(df, target_column, unique_value_threshold=10):
@@ -1077,9 +1304,16 @@ def create_pdf_report(algo_type, model, report_params):
 	st.toast("Report generated and ready to download")
 	return pdf_buffer
 
-
+clean = False
 def algorithm(df, demo="no"):
-	if not df.empty:
+	global clean
+	st.sidebar.markdown("""---""")
+	st.sidebar.subheader("Data Preprocessing")
+	global null, categorical
+	null, categorical = check_dataset(df)
+	df = data_clean(df, 1)
+	st.sidebar.markdown("""---""")
+	if not df.empty and clean:
 		show_data(df)
 		cols = ("select", )
 		for i, j in enumerate(df.columns):
@@ -1135,24 +1369,11 @@ def algorithm(df, demo="no"):
 			if sampling == "No" or c == 1 or sampling == "":
 				st.write("")
 				if a_type == "Classification":
-					recommendations = recommend_classification_models(df, target)
-					if sampling == "No":
-						st.sidebar.info("""
-							Because of the Imbalanced Dataset
-
-							- **:green[Highly Recommended:]** Random Forest, Decision Tree, Logistic Regression, SVM
-							- **:red[Not Recommended:]** KNN, Naive Bayes
-							""")
+					recommendations = recommend_classification_models(df, target)                                    
 				else:
 					recommendations = recommend_regression_models(df, target)
-					if sampling == "No":
-						st.sidebar.info("""
-							Because of the Imbalanced Dataset
-
-							- **:green[Highly Recommended:]** Random Forest, Decision Tree, Ridge Regression, Lasso Regression, Elastic Net
-							- **:red[Not Recommended:]** KNN, SVM
-							""")
-				st.sidebar.info("Based on the Dataset Characteristics, Recommended Models are\n" + "\n".join(list(f"- {name}" for name in recommendations)))
+				if sampling != "No":
+					st.sidebar.info("Based on the Dataset Characteristics, Recommended Models are\n" + "\n".join(list(f"- {name}" for name in recommendations)))
 
 
 			st.sidebar.write("")
@@ -1355,8 +1576,8 @@ def algorithm(df, demo="no"):
 					# Append results
 					if filename not in st.session_state.clf_results:
 						st.session_state.clf_results[filename] = dict()
-					st.session_state.clf_results[filename][model_select] = [model_select, train_score, test_score, precision, recall, f1, str(cm)]
-					comparision_df = pd.DataFrame(list(st.session_state.clf_results[filename].values()), columns=["Model", "Train Score", "Test Score", "Precision", "Recall", "F1-Score", "Confusion Matrix"], index=[i for i in range(1, len(st.session_state.clf_results[filename].values())+1)])
+					st.session_state.clf_results[filename][f"{model_select}_{tst_size}"] = [model_select, tst_size, train_score, test_score, precision, recall, f1, str(cm)]
+					comparision_df = pd.DataFrame(list(st.session_state.clf_results[filename].values()), columns=["Model", "Test:Train Ratio", "Train Score", "Test Score", "Precision", "Recall", "F1-Score", "Confusion Matrix"], index=[i for i in range(1, len(st.session_state.clf_results[filename].values())+1)])
 					st.dataframe(comparision_df)
 
 
@@ -1556,8 +1777,8 @@ def algorithm(df, demo="no"):
 					# Append results
 					if filename not in st.session_state.reg_results:
 						st.session_state.reg_results[filename] = dict()
-					st.session_state.reg_results[filename][model_select] = [model_select, train_score, test_score, mae, mse, rmse, r2]
-					comparision_df = pd.DataFrame(list(st.session_state.reg_results[filename].values()), columns=["Model", "Train Score", "Test Score", "MAE", "MSE", "RMSE", "R2 Score"], index=[i for i in range(1, len(st.session_state.reg_results[filename].values())+1)])
+					st.session_state.reg_results[filename][f"{model_select}_{tst_size}"] = [model_select, tst_size, train_score, test_score, mae, mse, rmse, r2]
+					comparision_df = pd.DataFrame(list(st.session_state.reg_results[filename].values()), columns=["Model", "Test:Train Ratio", "Train Score", "Test Score", "MAE", "MSE", "RMSE", "R2 Score"], index=[i for i in range(1, len(st.session_state.reg_results[filename].values())+1)])
 					st.dataframe(comparision_df)
 
 					st.header("")
