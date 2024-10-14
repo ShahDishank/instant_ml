@@ -91,7 +91,7 @@ def check_dataset(df):
 	return n,c
 
 def dp_col(dfc,cnt):
-    dmv_col_name = st.sidebar.multiselect("Select Columns",dfc.columns,placeholder="Select", key=cnt)
+    dmv_col_name = st.sidebar.multiselect("Select Columns",dfc.columns,placeholder="Select", key=f"drop_c{cnt}")
     dfc = dfc.drop(dmv_col_name,axis=1)
     return dfc
 
@@ -1702,7 +1702,7 @@ def algorithm(df, demo="no"):
 
 					with t1:
 						st.write("")
-						col_select = st.slider("Select column for graph", 1, col, 1, key=1)
+						col_select = st.slider("Select column for graph", 1, col, 1, key="ap1")
 
 						ifig = go.Figure()
 						ifig.add_trace(go.Scatter(x=X_test.iloc[:, col_select-1], y=y_test, mode='markers', name='Actual', marker=dict(color='blue')))
@@ -1735,7 +1735,7 @@ def algorithm(df, demo="no"):
 
 					with t2:
 						st.write("")
-						col_select = st.slider("Select column for graph", 1, col, 1, key=2)
+						col_select = st.slider("Select column for graph", 1, col, 1, key="ap2")
 
 						fig = plt.figure(figsize=(10, 7))
 						sns.scatterplot(x=X_test.iloc[:, col_select-1], y=y_test, color='b', label='Actual')
