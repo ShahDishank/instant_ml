@@ -8,5 +8,4 @@ python-io
 Plotly
 fpdf
 imblearn
-smogn
 scipy

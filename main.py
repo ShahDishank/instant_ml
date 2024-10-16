@@ -21,11 +21,11 @@ import pickle
 from fpdf import FPDF
 import tempfile
 import datetime
-from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import NearMiss
+from imblearn.over_sampling import RandomOverSampler, SMOTE, BorderlineSMOTE, ADASYN
+from imblearn.under_sampling import RandomUnderSampler, NearMiss, TomekLinks
+from imblearn.combine import SMOTETomek, SMOTEENN
 from collections import Counter
-from imblearn.under_sampling import RandomUnderSampler
-import smogn
+from scipy import stats
 from scipy.stats import shapiro
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder,OrdinalEncoder,OneHotEncoder
@@ -738,77 +738,99 @@ def check_imbalance(y):
     	st.sidebar.info(f"""
     		Given Dataset's Class Distribution:
 
-			{counter}""")
+			{dict(counter)}""")
     	st.sidebar.error(f"The dataset is imbalanced with a ratio of {imbalance_ratio:.2f}")
-    	return True
+    	return True, imbalance_ratio
     else:
     	st.sidebar.info("The dataset is significantly balanced.")
-    	return False
+    	return False, imbalance_ratio
 
-# Function to perform oversampling (SMOTE) or undersampling (NearMiss)
 @st.cache_resource
-def handle_imbalance_clf(X, y, method='oversampling'):
-    if method == 'oversampling':
-        # print("Performing SMOTE oversampling...")
-        smote = SMOTE()
-        X_res, y_res = smote.fit_resample(X, y)
-    elif method == 'undersampling':
-        # print("Performing NearMiss undersampling...")
-        nearmiss = NearMiss()
-        X_res, y_res = nearmiss.fit_resample(X, y)
-    else:
-        print("Invalid method. Please choose 'oversampling' or 'undersampling'.")
-        return X, y
-    ctr = Counter(y_res)
-    st.sidebar.success(f"""
-    		The Dataset is now balanced! New class distribution:
+def suggest_resampling_type(X, y, ratio):
+    imbalance_ratio = ratio
+    n_samples, n_features = X.shape
 
-    		- {ctr}""")
-    return X_res, y_res
+    # Determine resampling type based on the imbalance ratio
+    if imbalance_ratio > 10:  # Highly imbalanced
+        if n_samples > 30000:
+            return "Undersampling"
+        elif n_features > 50:
+            return "Hybrid"
+        else:
+            return "Oversampling"
+    elif 3 < imbalance_ratio <= 10:  # Moderately imbalanced
+        if n_samples > 10000:
+            return "Hybrid"
+        else:
+            return "Oversampling"
+    else:  # Slightly imbalanced or balanced
+        return "Oversampling"  # Usually safe to use oversampling
 
-# Function to check if the dataset is imbalanced based on skewness of target
 @st.cache_resource
-def check_skewness(y, threshold=1.0):
-    skewness = np.abs(y.skew())
-    # print(f"Skewness of the target variable: {skewness:.2f}")
-    if skewness > threshold:
-        st.sidebar.error(f"The target variable is skewed with an absolute skewness of {skewness:.2f}")
-        return True
-    else:
-        st.sidebar.info("The target variable is significantly unskewed!")
-        return False
+def suggest_algorithm(X, y, ratio, resampling_type):
+    imbalance_ratio = ratio
+    n_samples, n_features = X.shape
 
-# Function to perform oversampling (SMOGN) or undersampling (Random UnderSampling)
+    # Oversampling suggestions
+    if resampling_type == "Oversampling":
+        if imbalance_ratio > 10:
+            return "SMOTE"  # Popular for high imbalance
+        elif 3 < imbalance_ratio <= 10:
+            if n_features > 20:
+                return "ADASYN"  # Works well with higher dimensional data
+            else:
+                return "Borderline-SMOTE"  # More sensitive to borderline cases
+        else:
+            return "Random Oversampling"  # For low imbalance
+
+    # Undersampling suggestions
+    elif resampling_type == "Undersampling":
+    	if n_samples > 40000:
+    		return "NearMiss"  # Effective for very large datasets
+    	elif imbalance_ratio > 5:
+    		return "Tomek Links"  # Removes overlapping samples
+    	else:
+    		return "Random Undersampling"  # Simple and effective
+
+    # Hybrid suggestions
+    elif resampling_type == "Hybrid":
+        if n_samples > 20000 or n_features > 50:
+            return "SMOTE-ENN"  # Suitable for large and high-dimensional data
+        else:
+            return "SMOTETomek"  # Removes Tomek links after SMOTE
+
+# Oversampling Methods
 @st.cache_resource
-def handle_imbalance_reg(df, target, X, y, method='oversampling'):
-    if method == 'oversampling':
-        # print("Performing SMOGN oversampling for regression...")
-        # Apply SMOGN for regression oversampling
-        data_resampled = smogn.smoter(
-            data = df,            # input data
-            y = target,           # target variable name
-            rel_thres=0.8           # relevance threshold for determining minority/majority
-        )
-        X_resampled = data_resampled.drop(columns=[target])
-        y_resampled = data_resampled[target]
-    # elif method == 'undersampling':
-    #     # print("Performing Random Undersampling for regression...")
-    #     # Apply Random Undersampling for regression
-    #     rus = RandomUnderSampler()
-    #     X_resampled, y_resampled = rus.fit_resample(X, y)
-    else:
-        print("Invalid method. Please choose 'oversampling' or 'undersampling'.")
-        return X, y
+def apply_oversampling(X, y, method):
+    if method == "Random Oversampling":
+        resampler = RandomOverSampler()
+    elif method == "SMOTE":
+        resampler = SMOTE()
+    elif method == "Borderline-SMOTE":
+        resampler = BorderlineSMOTE()
+    elif method == "ADASYN":
+        resampler = ADASYN()
+    return resampler.fit_resample(X, y)
 
+# Undersampling Methods
+@st.cache_resource
+def apply_undersampling(X, y, method):
+    if method == "Random Undersampling":
+        resampler = RandomUnderSampler()
+    elif method == "NearMiss":
+        resampler = NearMiss()
+    elif method == "Tomek Links":
+        resampler = TomekLinks()
+    return resampler.fit_resample(X, y)
 
-    old = df[target].describe()
-    new = y_resampled.describe()
-    
-    d = {"Old Target Distribution": [old[i] for i in range(len(old))], "New Target Distribution": [new[i] for i in range(len(new))]}
-    dfd = pd.DataFrame(d, index = [i for i in old.index.to_list()])
-    st.sidebar.table(dfd)
-
-    return X_resampled, y_resampled
+# Hybrid Methods
+@st.cache_resource
+def apply_hybrid(X, y, method):
+    if method == "SMOTETomek":
+        resampler = SMOTETomek()
+    elif method == "SMOTE-ENN":
+        resampler = SMOTEENN()
+    return resampler.fit_resample(X, y)
 
 def is_gaussian(data):
     """Check if numeric data is normally distributed using Shapiro-Wilk test."""
@@ -869,8 +891,8 @@ def recommend_regression_models(df, target):
     if num_samples < 1000:
         recommendations.append("KNN")
 
-    # High-dimensional or non-linear data: SVM
-    if num_features > 20 or num_samples > 10000:
+    # High-dimensional and non-linear data: SVM
+    if num_features > 20 and num_samples > 10000:
         recommendations.append("SVM")
 
     # Decision Tree and Random Forest for non-linear and larger datasets
@@ -1306,14 +1328,18 @@ def create_pdf_report(algo_type, model, report_params):
 
 clean = False
 def algorithm(df, demo="no"):
+	if demo != "no":
+		st.sidebar.download_button("Download Demo Data",data=df.to_csv(index=False),file_name=filename,use_container_width=True,type="primary")
 	global clean
 	st.sidebar.markdown("""---""")
 	st.sidebar.subheader("Data Preprocessing")
 	global null, categorical
 	null, categorical = check_dataset(df)
 	df = data_clean(df, 1)
-	st.sidebar.markdown("""---""")
 	if not df.empty and clean:
+		st.sidebar.write("")
+		st.sidebar.download_button("Download Preprocessed Data",data=df.to_csv(index=False),file_name=filename,use_container_width=True,type="primary")
+		st.sidebar.markdown("""---""")
 		show_data(df)
 		cols = ("select", )
 		for i, j in enumerate(df.columns):
@@ -1333,38 +1359,77 @@ def algorithm(df, demo="no"):
 			X, y = get_data(df, target)
 			if not X.empty:
 				a_type = determine_algo_type(df, target)
+				if demo == "no":
+					# a_type = determine_algo_type(df, target)
+					algo_type = st.sidebar.selectbox(
+						'Select an algorithm type',
+						('Classification', 'Regression'), index = 1 if a_type == "Regression" else 0,
+						help = """
+						1) Classification : Classification is a supervised learning task that categorizes data into predefined labels based on patterns learned from labeled training data.
+
+						2) Regression : Regression is also a supervised machine learning technique, used to predict the value of the dependent variable for new, unseen data.
+						"""
+						)
+				else:
+					if demo == "clf_demo":
+						algo_type = "Classification"
+						st.sidebar.subheader("Classification")
+					elif demo == "reg_demo":
+						algo_type = "Regression"
+						st.sidebar.subheader("Regression")
+				a_type = algo_type
 				c = 0
 				sampling = ""
 				if a_type == "Classification":
-					if check_imbalance(y):
+					flag, ratio = check_imbalance(y)
+					if flag:
 						sampling = st.sidebar.selectbox("Do you want to balance dataset?", ["select", "Yes", "No"])
 						if sampling == "Yes":
-							sampling_method = st.sidebar.selectbox("Select Method", ["select", "Oversampling", "Undersampling"],
+							resampling_type = suggest_resampling_type(X, y, ratio)
+							algorithm_suggestion = suggest_algorithm(X, y, ratio, resampling_type)
+
+							st.sidebar.info(f"""Suggested Algorithm:
+
+								{resampling_type} : {algorithm_suggestion}""")
+
+							sampling_method = st.sidebar.selectbox("Select Method", ["select", "Oversampling", "Undersampling", "Hybrid"], index=["select", "Oversampling", "Undersampling", "Hybrid"].index(resampling_type),
 								help = """
 								1) Oversampling: Increases the number of minority class samples in a dataset to balance the class distribution.
 								
 								2) Undersampling: Reduces the number of majority class samples in a dataset to balance the class distribution.
+
+								3) Hybrid: The Hybrid qualities of both Oversampling and Undersampling.
 								""")
 							if sampling_method != "select":
-								X, y = handle_imbalance_clf(X, y, method=sampling_method.lower())
+								oversampling = ["Random Oversampling", "SMOTE", "Borderline-SMOTE", "ADASYN"]
+								undersampling = ["Random Undersampling", "NearMiss", "Tomek Links"]
+								hybrid = ["SMOTETomek", "SMOTE-ENN"]
+								if sampling_method == "Oversampling":
+									method = st.sidebar.selectbox("Choose Oversampling Algorithm", oversampling, index=oversampling.index(algorithm_suggestion) if algorithm_suggestion in oversampling else 0)
+									X, y = apply_oversampling(X, y, method)
+								elif sampling_method == "Undersampling":
+									method = st.sidebar.selectbox("Choose Undersampling Algorithm", undersampling, index=undersampling.index(algorithm_suggestion) if algorithm_suggestion in undersampling else 0)
+									X, y = apply_undersampling(X, y, method)
+								elif sampling_method == "Hybrid":
+									method = st.sidebar.selectbox("Choose Hybrid Algorithm", hybrid, index=hybrid.index(algorithm_suggestion) if algorithm_suggestion in hybrid else 0)
+									X, y = apply_hybrid(X, y, method)
+
+								st.sidebar.success(f"""
+					            New class distribution:
+
+						{dict(Counter(y))}""")
+
 								c = 1
 				else:
-					if check_skewness(y):
-						sampling = st.sidebar.selectbox("Do you want to balance dataset?", ["select", "Yes", "No"])
-						if sampling == "Yes":
-							sampling_method = st.sidebar.selectbox("Select Method", ["select", "Oversampling"],
-								help = """
-								Oversampling: Increases the number of minority class samples in a dataset to balance the class distribution.
-								""")
-							if sampling_method != "select":
-								X, y = handle_imbalance_reg(df, target, X, y, method=sampling_method.lower())
-								c = 1
+					pass
 				if c == 1:
 					lt.empty()
 					st.sidebar.write(f"Shape of the Old Dataset: :red[**{df.shape}**]")
 					df = pd.concat([X, y], axis=1)
 					st.sidebar.write(f"Shape of the New Dataset: :green[{df.shape}]")
 					show_data(df)
+					st.sidebar.write("")
+					st.sidebar.download_button("Download Balanced Data",data=df.to_csv(index=False),file_name=filename,use_container_width=True,type="primary")
 
 			if sampling == "No" or c == 1 or sampling == "":
 				st.write("")
@@ -1391,24 +1456,6 @@ def algorithm(df, demo="no"):
 				st.write(f"- y_train: **{y_train.shape}**")
 				st.write(f"- y_test: **{y_test.shape}**")
 
-				if demo == "no":
-					a_type = determine_algo_type(df, target)
-					algo_type = st.sidebar.selectbox(
-						'Select an algorithm type',
-						('Classification', 'Regression'), index = 1 if a_type == "Regression" else 0,
-						help = """
-						1) Classification : Classification is a supervised learning task that categorizes data into predefined labels based on patterns learned from labeled training data.
-
-						2) Regression : Regression is also a supervised machine learning technique, used to predict the value of the dependent variable for new, unseen data.
-						"""
-						)
-				else:
-					if demo == "clf_demo":
-						algo_type = "Classification"
-						st.sidebar.subheader("Classification")
-					elif demo == "reg_demo":
-						algo_type = "Regression"
-						st.sidebar.subheader("Regression")
 				if algo_type == "Classification":
 					start_time = time.time()
 					model = classification()
