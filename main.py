@@ -72,6 +72,9 @@ def get_data(df, target):
 	X = df.drop(target, axis=1, inplace=False)
 	return X,y
 
+pre = list()
+pre_option = list()
+
 def check_dataset(df):
 	null_columns = df.columns[df.isnull().any()].tolist()
 	n = 0
@@ -92,17 +95,25 @@ def check_dataset(df):
 
 def dp_col(dfc,cnt):
     dmv_col_name = st.sidebar.multiselect("Select Columns",dfc.columns,placeholder="Select", key=f"drop_c{cnt}")
+    global pre, pre_option
+    if len(dmv_col_name) != 0:
+    	pre.append({"drop_columns": list(dmv_col_name)})
+    	pre_option.append("Drop Columns")
     dfc = dfc.drop(dmv_col_name,axis=1)
     return dfc
 
 def simple_imputation(df, cnt, method='delete', fill_value=0):
 	null_cols = df.columns[df.isnull().any()].tolist()
 	dfc = df.copy()
+	global pre
+	d = dict()
 	if method == 'delete':
 		if len(null_cols) == 0:
 			st.sidebar.write("No columns found with null values")
 		else:
 			cols = st.sidebar.multiselect("Select Columns", null_cols, default=null_cols[0], key=f"del{cnt}")
+			d["method"] = method
+			d["selected_columns"] = list(cols)
 			dfc = df.dropna(subset=cols)
 	elif method == 'mean' or method == 'median':
 	    imputer = SimpleImputer(strategy=method)
@@ -113,11 +124,15 @@ def simple_imputation(df, cnt, method='delete', fill_value=0):
 	    else:
 	    	cols = st.sidebar.multiselect("Select from these numeric columns", null_columns, default=null_columns[0], key=f"mm{cnt}")
 	    	dfc = df.copy()
+	    	d["method"] = method
+	    	d["selected_columns"] = list(cols)
 	    	dfc[cols] = imputer.fit_transform(dfc[cols])
 	elif method == 'most_frequent':
 	    imputer = SimpleImputer(strategy='most_frequent')
 	    columns = st.sidebar.multiselect("Select Columns", null_cols, default=null_cols[0], key=f"mf{cnt}")
 	    dfc = df.copy()
+	    d["method"] = method
+	    d["selected_columns"] = list(columns)
 	    dfc[columns] = imputer.fit_transform(dfc[columns])
 	elif method == 'ffill' or method == 'bfill':
 	    if len(null_cols) == 0:
@@ -125,6 +140,8 @@ def simple_imputation(df, cnt, method='delete', fill_value=0):
 	    else:
 	    	cols = st.sidebar.multiselect("Select Columns", null_cols, default=null_cols[0], key=f"fill{cnt}")
 	    	dfc = df.copy()
+	    	d["method"] = method
+	    	d["selected_columns"] = list(cols)
 	    	dfc[cols] = df[cols].fillna(method=method)
 	elif method == 'constant':
 	    imputer = SimpleImputer(strategy='constant', fill_value=fill_value)
@@ -135,9 +152,13 @@ def simple_imputation(df, cnt, method='delete', fill_value=0):
 	    else:
 	    	cols = st.sidebar.multiselect("Select from these numeric columns", null_columns, default=null_columns[0], key=f"con{cnt}")
 	    	dfc = df.copy()
+	    	d["method"] = method
+	    	d["selected_columns"] = list(cols)
+	    	d["fill_value"] = fill_value
 	    	dfc[cols] = imputer.fit_transform(dfc[cols])
 	else:
 	    raise ValueError("Wrong value!")
+	pre.append(d)
 	return dfc
 
 def categorical_cols(df):
@@ -163,7 +184,7 @@ def one_hot_encoding(df,columns):
         df = pd.concat([df,df_encoded],axis=1)
         return df
     except:
-        return pd.get_dummies(df, columns=cols)
+        return pd.get_dummies(df, columns=columns)
 
 def is_gaussian_data(df, col_name, alpha=0.05):
     stat, p = shapiro(df[col_name])
@@ -182,45 +203,50 @@ def normalize(df, col_names):
     return df
 
 def feat_scal(df, cnt):
-    col_name = st.sidebar.multiselect("Select Columns", df.columns, placeholder="Select", key=f"fsms{cnt}")
+	global pre
+	col_name = st.sidebar.multiselect("Select Columns", df.columns, placeholder="Select", key=f"fsms{cnt}")
 
-    gaussian_cols = []
-    non_gaussian_cols = []
+	gaussian_cols = []
+	non_gaussian_cols = []
 
-    for col in col_name:
-    	if is_gaussian_data(df, col):
-    		gaussian_cols.append(col)
-    	else:
-    		non_gaussian_cols.append(col)
+	for col in col_name:
+		if is_gaussian_data(df, col):
+			gaussian_cols.append(col)
+		else:
+			non_gaussian_cols.append(col)
 
-    std = f'''
-    The following columns :green[**are of Gaussian/Symmetric Distribution**]
-    - Recommended method: :green[**Standardization**]
-    - Columns: :green[**{', '.join(gaussian_cols)}**]
-    '''
+	std = f'''
+	The following columns :green[**are of Gaussian/Symmetric Distribution**]
+	- Recommended method: :green[**Standardization**]
+	- Columns: :green[**{', '.join(gaussian_cols)}**]
+	'''
 
-    nrm = f'''
-    The following columns :red[**are not of Gaussian/Symmetric Distribution**]
-    - Recommended method: :red[**Normalization**]
-    - Columns: :red[**{', '.join(non_gaussian_cols)}**]
-    '''
+	nrm = f'''
+	The following columns :red[**are not of Gaussian/Symmetric Distribution**]
+	- Recommended method: :red[**Normalization**]
+	- Columns: :red[**{', '.join(non_gaussian_cols)}**]
+	'''
 
-    if gaussian_cols:
-        st.sidebar.info(std)
-    if non_gaussian_cols:
-        st.sidebar.info(nrm)
+	if gaussian_cols:
+	    st.sidebar.info(std)
+	if non_gaussian_cols:
+	    st.sidebar.info(nrm)
 
-    if len(col_name) != 0:
-        for col in col_name:
-            method = st.sidebar.selectbox(f"Select Method of Scaling for :blue[**{col}**]", ["Normalization", "Standardization"], index=1 if col in gaussian_cols else 0, placeholder="Select Here", key=f"fssb_{cnt}_{col}")
-            if method == "Standardization":
-                df = standardize(df, col)
-            else:
-                df = normalize(df, col)
-    return df
+	if len(col_name) != 0:
+		methods = list()
+		for col in col_name:
+		    method = st.sidebar.selectbox(f"Select Method of Scaling for :blue[**{col}**]", ["Normalization", "Standardization"], index=1 if col in gaussian_cols else 0, placeholder="Select Here", key=f"fssb_{cnt}_{col}")
+		    methods.append(method)
+		    if method == "Standardization":
+		        df = standardize(df, col)
+		    else:
+		        df = normalize(df, col)
+		pre.append({'methods': methods, 'col_names': col_name})
+	return df
 
 def data_clean(df,x):
 	global null, categorical
+	global pre, pre_option
 	show_data(df)
 	option = ["Drop Columns","Deal with Null Values","Deal with Categorical Features","Feature Scaling"]
 	if null == 0:
@@ -262,25 +288,32 @@ def data_clean(df,x):
 			c_cols = categorical_cols(df.copy())
 			le_cols = st.sidebar.multiselect("Select Columns", c_cols, placeholder="Select", key=f"lems{x}")
 			if len(le_cols) != 0:
+				pre.append({'method': 'label_encoding', 'columns': le_cols})
 				df = label_encoding(df, le_cols)
 		elif encoding_method == "Ordinal Enconding":
 		    c_cols = categorical_cols(df.copy())
 		    oe_cols = st.sidebar.multiselect("Select Columns", c_cols, placeholder="Select", key=f"oems{x}")
 		    if len(oe_cols) != 0:
+		    	pre.append({'method': 'ordinal_encoding', 'columns': oe_cols})
 		    	df = ordinal_encoding(df, oe_cols)
 		elif encoding_method == "One-Hot Encoding":
 			c_cols = categorical_cols(df.copy())
 			ohe_cols = st.sidebar.multiselect("Select Columns", c_cols, placeholder="Select", key=f"ohems{x}")
 			if len(ohe_cols) != 0:
+				pre.append({'method': 'one_hot_encoding', 'columns': ohe_cols})
 				df = one_hot_encoding(df, ohe_cols)
 	elif sel == "Feature Scaling":
 	    df = feat_scal(df, x+1)
 
 	if st.sidebar.toggle(":blue[Next]", key=f"tn{x+1}"):
 		lt.empty()
+		if sel != "Drop Columns":
+			pre_option.append(sel)
 		df = data_clean(df, x+1)
 	elif st.sidebar.toggle(":red[Quit]", key=f"tq{x+1}"):
 		lt.empty()
+		if sel != "Drop Columns":
+			pre_option.append(sel)
 		st.sidebar.write("")
 		st.sidebar.success("After Data Preprocessing...")
 		n, c = check_dataset(df)
@@ -787,7 +820,7 @@ def suggest_algorithm(X, y, ratio, resampling_type):
     elif resampling_type == "Undersampling":
     	if n_samples > 40000:
     		return "NearMiss"  # Effective for very large datasets
-    	elif imbalance_ratio > 5:
+    	elif imbalance_ratio > 5 and n_samples > 30000:
     		return "Tomek Links"  # Removes overlapping samples
     	else:
     		return "Random Undersampling"  # Simple and effective
@@ -908,60 +941,112 @@ def fetch_code(fname):
 		data = f.read()
 	return data
 
+def preprocessing_code():
+	global pre, pre_option
+	data = ""
 
-def get_code(algo_type, f_var, params):
+	if "Drop Columns" in pre_option:
+		data += "# Drop Columns\n" + fetch_code("drop_col") + "\n\n"
+	if "Deal with Null Values" in pre_option:
+		data += "# Deal with Null Values\n" + fetch_code("simple_imputation") + "\n\n"
+	if "Deal with Categorical Features" in pre_option:
+		data += "# Deal with Categorical Features\n"
+		for option, param in zip(pre_option, pre):
+			if option == "Deal with Categorical Features":
+				if param["method"] == "label_encoding":
+					data += fetch_code("label_encoding") + "\n\n"
+				elif param["method"] == "ordinal_encoding":
+					data += fetch_code("ordinal_encoding") + "\n\n"
+				elif param["method"] == "one_hot_encoding":
+					data += fetch_code("one_hot_encoding") + "\n\n"
+	if "Feature Scaling" in pre_option:
+		data += "# Features Scaling\n" + fetch_code("feat_scal") + "\n\n"
+
+	data += "# Data Preprocessing\n" + fetch_code("data_clean") + "\n\n"
+	data += 'print("Data Preprocessing Started...")' + "\n\n"
+	for option, param in zip(pre_option, pre):
+		if option == "Drop Columns":
+			key = "drop_columns"
+			value = param[key]
+		if option == "Deal with Null Values":
+			key = "imputation_params"
+			value = param
+		if option == "Deal with Categorical Features":
+			key = "encoding_params"
+			value = param
+		if option == "Feature Scaling":
+			key = "scaling_columns"
+			value = param
+		data += fetch_code("preprocessing").format(key = key, value = value) + "\n"
+	data += "\n" + 'print("Data Preprocessing Completed!")' + "\n"
+
+	return data
+
+
+def get_code(algo_type, f_var, params, resample_flag, resampling, pre_flag):
+	read_file = fetch_code("read_file").format(filename=f_var["filename"]) + "\n\n"
+	if not pre_flag:
+		read_file += preprocessing_code() + "\n"
+	if resample_flag:
+		resample_code = "# balance the imbalanced data\n" + fetch_code(resampling["type"].lower()).format(target=f_var["target"], method=resampling["algorithm"]) + "\n\n"
+		read_file = read_file + resample_code
 	if algo_type == "Classification":
+		graph_data = fetch_code("clf_graphs").format()
+		graph_data = "\n\n" + graph_data
 		if model_select == "Logistic Regression":
 			data = fetch_code("clf_logistic_reg")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], solver = params["solver"], penalty = params["penalty"], C = params["C"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], solver = params["solver"], penalty = params["penalty"], C = params["C"])
 		elif model_select == "KNN":
 			data = fetch_code("clf_knn")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_neighbors = params["n_neighbors"], weights = params["weights"], metric = params["metric"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], n_neighbors = params["n_neighbors"], weights = params["weights"], metric = params["metric"])
 		elif model_select == "SVM":
 			data = fetch_code("clf_svm")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], C = params["C"], gamma = params["gamma"], kernel = params["kernel"], degree = params["degree"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], C = params["C"], gamma = params["gamma"], kernel = params["kernel"], degree = params["degree"])
 		elif model_select == "Naive Bayes":
 			data = fetch_code("clf_naive_bayes")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"])
 		elif model_select == "Decision Tree":
 			data = fetch_code("clf_decision_tree")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], criterion = params["criterion"], max_depth = params["max_depth"], min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], criterion = params["criterion"], max_depth = params["max_depth"], min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
 		elif model_select == "Random Forest":
 			data = fetch_code("clf_random_forest")
 			if params["max_features"] is None:
-				data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_leaf_nodes = params["max_leaf_nodes"], max_depth = params["max_depth"], max_features = params["max_features"])
+				data = data.format(target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_leaf_nodes = params["max_leaf_nodes"], max_depth = params["max_depth"], max_features = params["max_features"])
 			else:
 				max_f = "\""+params["max_features"]+"\""
-				data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_leaf_nodes = params["max_leaf_nodes"], max_depth = params["max_depth"], max_features = max_f)
+				data = data.format(target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_leaf_nodes = params["max_leaf_nodes"], max_depth = params["max_depth"], max_features = max_f)
 	elif algo_type == "Regression":
+		graph_data = fetch_code("reg_graphs").format()
+		graph_data = "\n\n" + graph_data
 		if model_select == "Linear Regression":
 			data = fetch_code("reg_linear")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], fit_intercept = params["fit_intercept"], copy_X = params["copy_X"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], fit_intercept = params["fit_intercept"], copy_X = params["copy_X"])
 		elif model_select == "Ridge Regression":
 			data = fetch_code("reg_ridge")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], alpha = params["alpha"], fit_intercept = params["fit_intercept"], solver = params["solver"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], alpha = params["alpha"], fit_intercept = params["fit_intercept"], solver = params["solver"])
 		elif model_select == "Lasso Regression":
 			data = fetch_code("reg_lasso")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], alpha = params["alpha"], fit_intercept = params["fit_intercept"], selection = params["selection"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], alpha = params["alpha"], fit_intercept = params["fit_intercept"], selection = params["selection"])
 		elif model_select == "Elastic Net":
 			data = fetch_code("reg_elastic_net")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], alpha = params["alpha"], fit_intercept = params["fit_intercept"], l1_ratio = params["l1_ratio"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], alpha = params["alpha"], fit_intercept = params["fit_intercept"], l1_ratio = params["l1_ratio"])
 		elif model_select == "KNN":
 			data = fetch_code("reg_knn")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_neighbors = params["n_neighbors"], weights = params["weights"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], n_neighbors = params["n_neighbors"], weights = params["weights"])
 		elif model_select == "SVM":
 			data = fetch_code("reg_svm")
-			data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], C = params["C"], gamma = params["gamma"], kernel = params["kernel"], degree = params["degree"])
+			data = data.format(target = f_var["target"], test_size = f_var["tst_size"], C = params["C"], gamma = params["gamma"], kernel = params["kernel"], degree = params["degree"])
 		elif model_select == "Decision Tree":
 				data = fetch_code("reg_decision_tree")
-				data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], criterion = params["criterion"], splitter = params["splitter"], min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
+				data = data.format(target = f_var["target"], test_size = f_var["tst_size"], criterion = params["criterion"], splitter = params["splitter"], min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
 		elif model_select == "Random Forest":
 				data = fetch_code("reg_random_forest")
 				if params["max_features"] is None:
-					data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_features = params["max_features"], min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
+					data = data.format(target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_features = params["max_features"], min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
 				else:
 					max_f = "\""+params["max_features"]+"\""
-					data = data.format(filename=f_var["filename"], target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_features = max_f, min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
+					data = data.format(target = f_var["target"], test_size = f_var["tst_size"], n_estimators = params["n_estimators"], max_features = max_f, min_samples_split = params["min_samples_split"], min_samples_leaf = params["min_samples_leaf"])
+	data = read_file + "# create model\n" + data + graph_data
 	return data
 
 
@@ -1328,6 +1413,7 @@ def create_pdf_report(algo_type, model, report_params):
 
 clean = False
 def algorithm(df, demo="no"):
+	original_df = df
 	if demo != "no":
 		st.sidebar.download_button("Download Demo Data",data=df.to_csv(index=False),file_name=filename,use_container_width=True,type="primary")
 	global clean
@@ -1337,8 +1423,10 @@ def algorithm(df, demo="no"):
 	null, categorical = check_dataset(df)
 	df = data_clean(df, 1)
 	if not df.empty and clean:
+		global pre, pre_option
 		st.sidebar.write("")
-		st.sidebar.download_button("Download Preprocessed Data",data=df.to_csv(index=False),file_name=filename,use_container_width=True,type="primary")
+		st.sidebar.download_button("Download Preprocessed Data",data=df.to_csv(index=False),file_name=filename,use_container_width=True,type="primary", key="dfp")
+		dfp = df
 		st.sidebar.markdown("""---""")
 		show_data(df)
 		cols = ("select", )
@@ -1422,7 +1510,10 @@ def algorithm(df, demo="no"):
 								c = 1
 				else:
 					pass
+				resampling = dict()
 				if c == 1:
+					resampling["type"] = sampling_method
+					resampling["algorithm"] = method
 					lt.empty()
 					st.sidebar.write(f"Shape of the Old Dataset: :red[**{df.shape}**]")
 					df = pd.concat([X, y], axis=1)
@@ -1632,14 +1723,20 @@ def algorithm(df, demo="no"):
 					gen = st.toggle("**Generate Code**")
 					if gen:
 						format_variable = {"filename":filename, "target":target, "tst_size":tst_size}
-						data = get_code(algo_type, format_variable, params)
+						if "type" in resampling:
+							resample_flag = True
+						else:
+							resample_flag = False
+						pre_flag = dfp.equals(original_df)
+						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
 						st.code(data)
 						st.download_button(
 						    label="Download Code",
 						    data=data,
 						    file_name=filename.replace('.csv', "") + "_" + model_select.replace(" ", "_") + ".py",
 						    mime='text/python',
-						    help="Download"
+						    use_container_width=True,
+						    type="primary"
 						)
 				else:
 					start_time = time.time()
@@ -1832,14 +1929,20 @@ def algorithm(df, demo="no"):
 					gen = st.toggle("**Generate Code**")
 					if gen:
 						format_variable = {"filename":filename, "target":target, "tst_size":tst_size}
-						data = get_code(algo_type, format_variable, params)
+						if "type" in resampling:
+							resample_flag = True
+						else:
+							resample_flag = False
+						pre_flag = dfp.equals(original_df)
+						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
 						st.code(data)
 						st.download_button(
 						    label="Download Code",
 						    data=data,
 						    file_name=filename.replace('.csv', "") + "_" + model_select.replace(" ", "_") + ".py",
 						    mime='text/python',
-						    help="Download"
+						    use_container_width=True,
+						    type="primary"
 						)
 
 
