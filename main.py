@@ -317,6 +317,8 @@ def data_clean(df,x):
 		st.sidebar.write("")
 		st.sidebar.success("After Data Preprocessing...")
 		n, c = check_dataset(df)
+		if c != 0:
+			st.sidebar.error("Please Deal with Categorical Values before creating Model")
 		global clean
 		clean = True
 		return df
@@ -985,7 +987,7 @@ def preprocessing_code():
 
 def get_code(algo_type, f_var, params, resample_flag, resampling, pre_flag):
 	read_file = fetch_code("read_file").format(filename=f_var["filename"]) + "\n\n"
-	if not pre_flag:
+	if pre_flag:
 		read_file += preprocessing_code() + "\n"
 	if resample_flag:
 		resample_code = "# balance the imbalanced data\n" + fetch_code(resampling["type"].lower()).format(target=f_var["target"], method=resampling["algorithm"]) + "\n\n"
@@ -1727,7 +1729,7 @@ def algorithm(df, demo="no"):
 							resample_flag = True
 						else:
 							resample_flag = False
-						pre_flag = dfp.equals(original_df)
+						pre_flag = True if len(pre_option) != 0 else False
 						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
 						st.code(data)
 						st.download_button(
@@ -1933,7 +1935,7 @@ def algorithm(df, demo="no"):
 							resample_flag = True
 						else:
 							resample_flag = False
-						pre_flag = dfp.equals(original_df)
+						pre_flag = True if len(pre_option) != 0 else False
 						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
 						st.code(data)
 						st.download_button(
