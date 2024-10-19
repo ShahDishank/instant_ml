@@ -72,6 +72,7 @@ def get_data(df, target):
 	X = df.drop(target, axis=1, inplace=False)
 	return X,y
 
+library = "pip install numpy pandas matplotlib seaborn plotly scikit-learn"
 pre = list()
 pre_option = list()
 
@@ -1424,6 +1425,7 @@ def algorithm(df, demo="no"):
 	global null, categorical
 	null, categorical = check_dataset(df)
 	df = data_clean(df, 1)
+	global library
 	if not df.empty and clean:
 		global pre, pre_option
 		st.sidebar.write("")
@@ -1442,9 +1444,20 @@ def algorithm(df, demo="no"):
 				)
 		else:
 			if demo == "clf_demo":
-				target = "Class"
+				if filename == "adult_census_income.csv":
+					target = "income"
+				elif filename == "cerebral_stroke_prediction.csv":
+					target = "stroke"
+				else:
+					target = "Class"
 			elif demo == "reg_demo":
-				target = "Price"
+				if filename == "steel_industry_data.csv":
+					target = "Usage_kWh"
+				elif filename == "student_performance.csv":
+					target = "Performance Index"
+				else:
+					target = "Price"
+			st.sidebar.subheader(f":gray[target column: {target}]")
 		if target != "select":
 			X, y = get_data(df, target)
 			if not X.empty:
@@ -1516,6 +1529,7 @@ def algorithm(df, demo="no"):
 				if c == 1:
 					resampling["type"] = sampling_method
 					resampling["algorithm"] = method
+					library += " imblearn"
 					lt.empty()
 					st.sidebar.write(f"Shape of the Old Dataset: :red[**{df.shape}**]")
 					df = pd.concat([X, y], axis=1)
@@ -1731,7 +1745,11 @@ def algorithm(df, demo="no"):
 							resample_flag = False
 						pre_flag = True if len(pre_option) != 0 else False
 						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
-						st.code(data)
+						with st.container(height=500, border=True):
+							st.write("Install Required Libraries")
+							st.code(library)
+							st.write("Code")
+							st.code(data)
 						st.download_button(
 						    label="Download Code",
 						    data=data,
@@ -1937,7 +1955,11 @@ def algorithm(df, demo="no"):
 							resample_flag = False
 						pre_flag = True if len(pre_option) != 0 else False
 						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
-						st.code(data)
+						with st.container(height=500, border=True):
+							st.write("Install Required Libraries")
+							st.code(library)
+							st.write("Code")
+							st.code(data)
 						st.download_button(
 						    label="Download Code",
 						    data=data,
@@ -1965,26 +1987,48 @@ def upload_file():
 choice = st.sidebar.selectbox("Choose data upload option", ("-- select --", "Try with demo data", "Upload data file"))
 if choice == "Try with demo data":
 	global filename
-	f_choice = st.sidebar.selectbox("Choose data file", ("-- select --", "Wine-data", "Housing-data"),
+	f_choice = st.sidebar.selectbox("Choose data file", ("-- select --", "Adult Census Income", "Cerebral Stroke Prediction", "Wine-data", "Steel Industry Data", "Student Performance", "Housing-data"),
 	help = """
-	1) Wine-data : A data of ingredients in wine, for classification task.
+	For Classification Task:
 
-	2) Housing-data : A data of housing price, for regression task.
+	1) Adult Census Income : Unprocessed personal data of adults to predict income.
+
+	2) Cerebral Stroke Prediction : Unprocessed data of people's health to predict stroke.
+
+	3) Wine-data : Very small, Preprocessed data of ingredients in wine to predict the type of wine.
+
+	For Regression Task:
+
+	4) Steel Industry Data : Unprocessed data of energy consumption of the industry to predict energy usage.
+
+	5) Student Performance : Unprocessed data of students to predict their performance index.
+
+	6) Housing-data : Preprocessed data of housing price to predict the house price.
 	""")
-	if f_choice == "Wine-data":
+	if f_choice in ["Adult Census Income", "Cerebral Stroke Prediction", "Wine-data"]:
 		try:
-			df = pd.read_csv("data_files/wine-data.csv")
-			filename = "wine-data.csv"
+			if f_choice == "Adult Census Income":
+				filename = "adult_census_income.csv"
+			elif f_choice == "Cerebral Stroke Prediction":
+				filename = "cerebral_stroke_prediction.csv"
+			else:
+				filename = "wine-data.csv"
+			df = pd.read_csv(f"data_files/{filename}")
 			lt.empty()
 		except:
 			st.sidebar.error("Error while loading the file!")
 			df = pd.DataFrame()
 		finally:
 			algorithm(df, "clf_demo")
-	elif f_choice == "Housing-data":
+	elif f_choice in ["Steel Industry Data", "Student Performance", "Housing-data"]:
 		try:
-			df = pd.read_csv("data_files/Housing-data.csv")
-			filename = "Housing-data.csv"
+			if f_choice == "Steel Industry Data":
+				filename = "steel_industry_data.csv"
+			elif f_choice == "Student Performance":
+				filename = "student_performance.csv"
+			else:
+				filename = "Housing-data.csv"
+			df = pd.read_csv(f"data_files/{filename}")
 			lt.empty()
 		except:
 			st.sidebar.error("Error while loading the file!")
