@@ -744,7 +744,7 @@ def show_data(df):
 		buffer = io.StringIO()
 		df.info(buf=buffer)
 		s = buffer.getvalue()
-		st.text(s)
+		st.code(s, language="bash")
 
 @st.cache_resource
 def determine_algo_type(df, target_column, unique_value_threshold=10):
