@@ -1745,10 +1745,11 @@ def algorithm(df, demo="no"):
 							resample_flag = False
 						pre_flag = True if len(pre_option) != 0 else False
 						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
+						st.write("")
+						st.write("Install Required Libraries")
+						st.code(library)
+						st.write("Code")
 						with st.container(height=500, border=True):
-							st.write("Install Required Libraries")
-							st.code(library)
-							st.write("Code")
 							st.code(data)
 						st.download_button(
 						    label="Download Code",
@@ -1955,10 +1956,11 @@ def algorithm(df, demo="no"):
 							resample_flag = False
 						pre_flag = True if len(pre_option) != 0 else False
 						data = get_code(algo_type, format_variable, params, resample_flag, resampling, pre_flag)
+						st.write("")
+						st.write("Install Required Libraries")
+						st.code(library)
+						st.write("Code")
 						with st.container(height=500, border=True):
-							st.write("Install Required Libraries")
-							st.code(library)
-							st.write("Code")
 							st.code(data)
 						st.download_button(
 						    label="Download Code",
