@@ -56,7 +56,7 @@ with lt.container():
 		img_path = "media_files/home_img.svg"
 		with open(img_path, 'r') as f:
 			img = f.read()
-		st.image(img, use_column_width=True)
+		st.image(img, use_container_width=True)
 
 	
 	st.write("")
